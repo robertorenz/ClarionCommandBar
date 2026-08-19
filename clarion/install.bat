@@ -6,7 +6,7 @@ rem
 rem   ClaCommandBar.tpl -> accessory\template\win
 rem   CommandBar.inc    -> accessory\libsrc\win
 rem   CommandBar.clw    -> accessory\libsrc\win
-rem   commandbar.lib    -> accessory\lib
+rem   commandbar.lib    -> accessory\lib AND accessory\libsrc\win
 rem   commandbar.dll    -> accessory\bin
 rem
 rem Those five folders are on the search paths in bin\CLARION120.RED, so
@@ -55,6 +55,11 @@ copy /y ClaCommandBar.tpl     "%CLA%\accessory\template\win\" >nul || goto :fail
 copy /y CommandBar.inc        "%CLA%\accessory\libsrc\win\"   >nul || goto :failed
 copy /y CommandBar.clw        "%CLA%\accessory\libsrc\win\"   >nul || goto :failed
 copy /y commandbar.lib        "%CLA%\accessory\lib\"          >nul || goto :failed
+rem  ALSO into libsrc\win.  A copy that lands there shadows the one in
+rem  accessory\lib - the linker finds it first - so an old one left behind
+rem  makes new exports come back as "Unresolved External" however many
+rem  times you rebuild.  Refreshing both keeps that from happening.
+copy /y commandbar.lib        "%CLA%\accessory\libsrc\win\"   >nul || goto :failed
 copy /y ..\bin\commandbar.dll "%CLA%\accessory\bin\"          >nul || goto :failed
 
 echo --- registering the template ---
