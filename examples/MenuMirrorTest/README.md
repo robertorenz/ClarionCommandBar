@@ -32,7 +32,7 @@ FIRSTFIELD=0 LASTFIELD=0
 5 top-level menus.
 ```
 
-## The three bugs these caught
+## The bugs these caught
 
 1. **An empty bar on a `WINDOW`.** The first version scanned a 1024-wide window
    around the menubar's own equate. With `PROP:MenuBar = 1` that never reaches
@@ -48,6 +48,45 @@ FIRSTFIELD=0 LASTFIELD=0
    worth mirroring has named items — an `ITEM` without a `USE` cannot have
    `ACCEPTED` code anyway.
 
+4. **The frame's toolbar disappearing the moment a procedure opened.** Choosing
+   **File → New** on `FrameMirrorTest` `START`s a real MDI child — on its own
+   thread, carrying its own `MENUBAR` *and* `TOOLBAR`, so Clarion merges. What
+   the merge actually does, measured by enumerating the frame's children before
+   and after:
+
+   ```
+   before:  ClaCommandBar.Bar  0,0   910x26
+            ClaToolBar         0,26  910x61
+            MDIClient          0,87  910x496
+
+   after:   ClaCommandBar.Bar  0,0   910x26
+            ClaToolBar         0,26  910x61   hidden   <- the original
+            MDIClient          0,87  910x496
+            ClaToolBar         0,26  910x61            <- a NEW merged one
+   ```
+
+   Clarion **creates a second `ClaToolBar`**, hides the first and shows the new
+   one. Forcing coordinates onto those show/hide messages, and remembering the
+   collapsed rect that comes with one as the toolbar's canonical position, is
+   what made the toolbar vanish. Only a real move or size is treated as a
+   layout now, and the correction runs *after* the host's own window procedure
+   — Clarion's MDI client re-imposes the frame's layout inside the same
+   `SetWindowPos` call, so correcting first simply loses.
+
+## What mirroring cannot do
+
+The child's `&Child` menu **does not appear on the mirrored bar**, and cannot:
+
+* it belongs to the child's window on the child's thread, so it is not in the
+  frame's control list — `MenuReport()` with the child open still lists only
+  the frame's five menus;
+* the merge is real at the Win32 level (the frame's `HMENU` does grow a sixth
+  popup), but Clarion owner-draws its menus, so every item reads back
+  `MFT_OWNERDRAW` with `cch = 0` and no text.
+
+Use `PROP:NoMerge` on children, or mirror with `HideOriginal` off so the real
+menu bar keeps showing the merged menus.
+
 ## Running them
 
 ```
@@ -60,6 +99,14 @@ The mirrored bar replaces the real menu in both. Open **File → Open Recent** (
 submenu) and **Trees** (a menu with no `USE`); the window reports which original
 `ITEM` fired. That is the point of mirroring — `?MNew`, `?MR1` and `?MTrees` run
 their ordinary `CASE ACCEPTED()` code, untouched.
+
+**File → New** opens the MDI child. The toolbar must stay put, below the
+mirrored menu row, and gain the child's *Child tool* button; the MDI client
+must sit below both.
+
+Set `CB_HOSTLOG=1` before running and every host-child move is traced to
+`%TEMP%\cbhost.log` — `HOOK`, `CHANGING` and `APPLY` lines with the canonical
+rect and what it was transformed to.
 
 If a mirrored bar ever comes out empty in your own app, call
 **`CB.MenuReport()`** and read it: it names the menubar equate it found, says

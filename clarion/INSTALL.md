@@ -308,26 +308,57 @@ configure; it turns itself on when it sees an `MDIClient` or a `ClaToolBar`.
 `CommandBar.ReserveSpace(0)` turns it off, `(1)` forces it on, `(-1)` is the
 auto default.
 
-Two Win32 details make this less obvious than it sounds, and both are in the
-comments in `commandbar.cpp`: Clarion derives the MDI client's top from the
-toolbar's **height** rather than its position, so simply moving the windows
-starts a fight it wins; and the MDI code inside `DefFrameProc` sizes the client
-with `SWP_NOSENDCHANGING`, so `WM_WINDOWPOSCHANGING` alone is not enough and
-`WM_WINDOWPOSCHANGED` has to be checked too.
+Three Win32 details make this less obvious than it sounds, and all three are in
+the comments in `commandbar.cpp`:
 
-### 5b8. MDI menu merging — `RefreshMirror`
+* Clarion derives the MDI client's top from the toolbar's **height** rather than
+  its position, so simply moving the windows starts a fight it wins.
+* Clarion's MDI client procedure re-imposes the frame's own layout **inside the
+  same `SetWindowPos` call**, so the correction has to run *after* the host's
+  window procedure has had its say, not before. The hook calls the original
+  procedure first and adjusts the answer.
+* What the bars take off each edge is remembered as four **thicknesses**, not as
+  the client rectangle's coordinates. A coordinate goes stale the instant the
+  frame is resized, and the host moves its own children long before it asks us
+  to lay out — which used to leave the MDI client short by whatever the window
+  had grown.
 
-A frame's menu is **not fixed**. Opening an MDI child merges that child's own
-`MENUBAR` into the frame's, and closing it takes those items away again. A
-mirror taken once at `Init` goes stale the moment a browse opens.
+**When an MDI child opens, Clarion creates a second `ClaToolBar`** for the
+merged toolbar, hides the original and shows the new one. Both are picked up,
+so the toolbar keeps its place; a bare show or hide is passed through
+untouched, because forcing coordinates onto one is what used to make the
+frame's toolbar disappear the moment a procedure opened.
 
-Two ways to deal with it:
+### 5b8. MDI menu merging — what mirroring can and cannot see
 
-* **`CommandBar.RefreshMirror()`** — throws the mirrored menu away and reads the
-  `MENUBAR` again onto the same bar. Call it after a child window opens or
-  closes. It returns the new top-level count.
+**A mirrored bar shows the frame's own `MENUBAR`. Menus that an MDI child
+merges into the frame are not mirrored.** That is a Clarion limitation, not a
+choice, and it is worth knowing exactly where the wall is:
+
+* The child's `MENU` controls belong to the **child's** window, on the child's
+  own thread. They never appear in the frame's control list, so no amount of
+  scanning the frame's field equates will find them — measured on Clarion 12,
+  `MenuReport()` on a frame with a child open still reports only the frame's
+  five menus.
+* The merge really does happen, but at the **Win32** level: the frame's `HMENU`
+  grows a sixth popup while the child is open. Reading it back does not help
+  either — Clarion draws its menus itself, so every item comes back
+  `MFT_OWNERDRAW` with `cch = 0` and no text at all.
+
+So plan the frame's bar around the frame's own menu, and use one of these for
+the rest:
+
 * **`PROP:NoMerge`** on the child window — stops Clarion merging at all, so the
-  frame's menu never changes and one mirror lasts the life of the app.
+  frame's menu never changes and one mirror lasts the life of the app. This is
+  the tidy answer when the frame's bar is meant to be the whole menu.
+* **Leave the child's menu alone** — a child that merges normally still shows
+  its own menu through the frame's real menu bar, so keep `HideOriginal` off
+  (`MirrorMenu(bar, 0)`) if the children need their merged menus.
+* **`CommandBar.RefreshMirror()`** — throws the mirrored menu away and reads the
+  frame's `MENUBAR` again onto the same bar, returning the new top-level count.
+  Use it when the **frame's own** menu changes at runtime (items added, renamed
+  or removed by your own code). It will not conjure up a child's merged menu,
+  for the reasons above.
 
 ### 5c. Putting your own controls under the bars
 
@@ -447,7 +478,8 @@ A 24px slot for 32px art looks far better than a 16px one.
 | The mirrored bar is **empty** | `MirrorMenu` found no MENU whose `PROP:Parent` is the menubar. Call `CB.MenuReport()` and read what it says — it names the menubar equate, says whether it sees a `WINDOW` or an `APPLICATION` frame, and lists what it found. If `PROP:MenuBar` is 0 the window has no menubar of its own: mirror on the **FRAME**, not on an MDI child, or pass the equate to `MirrorMenuFrom` |
 | A docked bar is drawn **on top of** the frame's toolbar | space reservation is off, or the host is not recognised as owning its layout. Call `CommandBar.ReserveSpace(1)` to force it |
 | Mirrored rows appear but **clicking does nothing** on a FRAME | fixed in v1.2. A frame numbers its menu controls NEGATIVE, so a mirrored command id lands just *below* `MirrorBase`, and the old test only matched ids above it |
-| The frame's menu gained items and the mirrored bar did not | an MDI child merged its menu in. Call `RefreshMirror()`, or set `PROP:NoMerge` on the child |
+| The frame's menu gained items and the mirrored bar did not | an MDI child merged its menu in — that cannot be mirrored (see 5b8). Set `PROP:NoMerge` on the child, or mirror with `HideOriginal` off |
+| A frame child (toolbar, MDI client) sits in the wrong place | set `CB_HOSTLOG=1` in the environment and run again — every host-child move is traced to `%TEMP%\cbhost.log` |
 | A mirrored row does nothing | its original `ITEM` has no `CASE ACCEPTED()` branch — mirroring only forwards the click, it does not invent behaviour |
 | A ribbon group is empty | the item's *Put it in* names the TAB, not the GROUP. Items go in a group |
 | A toggle button no longer stays down | its style was overwritten. `SetItemStyle` **replaces** the style word — include `CBIS:AutoCheck` when you set it by hand |

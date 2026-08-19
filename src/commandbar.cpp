@@ -5,6 +5,8 @@
   Drawing, window procedures and menu tracking live in cb_render.cpp.
   =====================================================================*/
 #include "cb_internal.h"
+#include <stdarg.h>
+#include <stdio.h>
 
 /*=====================================================================
   DllMain
@@ -772,6 +774,10 @@ void CBRelayout(CBManager* m)
     nc.left = left; nc.top = top; nc.right = right; nc.bottom = bottom;
     bool changed = !EqualRect(&nc, &m->clientRc);
     m->clientRc = nc;
+    m->insL = nc.left;
+    m->insT = nc.top;
+    m->insR = pc.right  - nc.right;
+    m->insB = pc.bottom - nc.bottom;
 
     /* The host lays its own children out against the FULL client area
        and never reads clientRc, so on a frame they have to be pushed
@@ -2120,6 +2126,43 @@ static void CBRectToClient(HWND parent, HWND child, RECT* out)
     out->bottom = br.y;
 }
 
+/*  Temporary diagnostic - set CB_HOSTLOG=1 to trace host-child layout. */
+static void CBHostLog(const char* fmt, ...)
+{
+    static int on = -1;
+    if (on < 0)
+    {
+        char v[8];
+        on = (GetEnvironmentVariableA("CB_HOSTLOG", v, 8) > 0 && v[0] == '1') ? 1 : 0;
+    }
+    if (!on) return;
+
+    char buf[512];
+    va_list ap;
+    va_start(ap, fmt);
+    int n = _vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, ap);
+    va_end(ap);
+    if (n <= 0) return;
+
+    char path[MAX_PATH];
+    DWORD tn = GetTempPathA(MAX_PATH, path);
+    if (!tn) return;
+    strcat_s(path, MAX_PATH, "cbhost.log");
+    HANDLE f = CreateFileA(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (f == INVALID_HANDLE_VALUE) return;
+    DWORD w = 0;
+    WriteFile(f, buf, (DWORD)n, &w, NULL);
+    CloseHandle(f);
+}
+
+static const char* CBClsOf(HWND h)
+{
+    static char c[64];
+    if (!GetClassNameA(h, c, 64)) c[0] = 0;
+    return c;
+}
+
 static bool CBIsOurWindow(HWND h)
 {
     wchar_t cls[64];
@@ -2188,10 +2231,10 @@ static void CBTransformHostRect(CBManager* m, const RECT* canon, RECT* out)
     if (cw < 1 || ch < 1) return;
 
     /* what the bars took off each side */
-    const int dl = m->clientRc.left;
-    const int dt = m->clientRc.top;
-    const int dr = pc.right  - m->clientRc.right;
-    const int db = pc.bottom - m->clientRc.bottom;
+    const int dl = m->insL;
+    const int dt = m->insT;
+    const int dr = m->insR;
+    const int db = m->insB;
     if (!dl && !dt && !dr && !db) return;
 
     /* room the host left past this child, kept intact - that is where a
@@ -2212,13 +2255,20 @@ static void CBTransformHostRect(CBManager* m, const RECT* canon, RECT* out)
     if (out->bottom <= out->top)  out->bottom = out->top + 1;
 }
 
-static void CBPlaceHostKid(CBManager* m, HWND h, const RECT* t)
+/*  Push the host's own CANONICAL rect at the window again with the hook
+    LIVE, so the correction runs on the way through and lands on top of
+    whatever the host's own window procedure decides.  Handing it the
+    already transformed rect with the hook muted does not work: Clarion's
+    MDI client procedure re-imposes the frame's layout inside the very
+    same SetWindowPos call, so the move is undone before it is ever
+    visible - which is why the client kept sitting under the toolbar. */
+static void CBReplayHostKid(CBManager* m, HWND h, const RECT* canon)
 {
-    m->fixingHost = true;
-    SetWindowPos(h, NULL, t->left, t->top,
-                 t->right - t->left, t->bottom - t->top,
+    (void)m;
+    SetWindowPos(h, NULL, canon->left, canon->top,
+                 canon->right - canon->left,
+                 canon->bottom - canon->top,
                  SWP_NOZORDER | SWP_NOACTIVATE);
-    m->fixingHost = false;
 }
 
 static LRESULT CALLBACK CBHostKidProc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
@@ -2227,17 +2277,28 @@ static LRESULT CALLBACK CBHostKidProc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
     WNDPROC    old = (WNDPROC)GetPropW(h, CBKIDPROP);
     if (!old) return DefWindowProcW(h, msg, wp, lp);
 
-    const bool live = m && !m->destroying && m->reserve != 0 && !m->fixingHost;
+    const bool live = m && !m->destroying && m->reserve != 0;
 
     if (msg == WM_WINDOWPOSCHANGING && live)
     {
         WINDOWPOS* p = (WINDOWPOS*)lp;
+
+        /*  Let the host adjust the position FIRST - it is the one that
+            knows where its toolbar and its client belong - and correct
+            the answer afterwards.  The other way round loses every time
+            the host has an opinion of its own. */
+        LRESULT r = CallWindowProcW(old, h, msg, wp, lp);
+
         CBHostKid* k = CBFindKid(m, h);
-        if (k)
+
+        /*  Only a real move or size is a layout.  A show, a hide or a
+            bare z-order change carries no geometry, and forcing
+            coordinates onto one of those is what made the frame's
+            toolbar vanish the moment an MDI child merged into it. */
+        const bool moving = (p->flags & (SWP_NOMOVE | SWP_NOSIZE))
+                                != (SWP_NOMOVE | SWP_NOSIZE);
+        if (k && moving)
         {
-            /* Whatever arrives here is the host's own intent, measured
-               against the full client area - so it IS the canonical
-               rect, and replaying it later stays correct. */
             RECT canon;
             canon.left   = (p->flags & SWP_NOMOVE) ? k->canon.left : p->x;
             canon.top    = (p->flags & SWP_NOMOVE) ? k->canon.top  : p->y;
@@ -2245,38 +2306,28 @@ static LRESULT CALLBACK CBHostKidProc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
                               ? (k->canon.right - k->canon.left) : p->cx);
             canon.bottom = canon.top + ((p->flags & SWP_NOSIZE)
                               ? (k->canon.bottom - k->canon.top) : p->cy);
-            k->canon = canon;
 
-            RECT t;
-            CBTransformHostRect(m, &canon, &t);
-            p->x  = t.left;
-            p->y  = t.top;
-            p->cx = t.right - t.left;
-            p->cy = t.bottom - t.top;
-            p->flags &= ~(SWP_NOMOVE | SWP_NOSIZE);
-        }
-    }
-    else if (msg == WM_WINDOWPOSCHANGED && live)
-    {
-        /* WM_WINDOWPOSCHANGING can be skipped entirely - the MDI code
-           inside DefFrameProc sizes the client with SWP_NOSENDCHANGING,
-           which is exactly how the MDI client kept ending up back under
-           the bars.  WM_WINDOWPOSCHANGED is always sent, so the position
-           is verified here as well and put right if it slipped. */
-        CBHostKid* k = CBFindKid(m, h);
-        if (k)
-        {
-            RECT cur;
-            CBRectToClient(m->parent, h, &cur);
-            RECT want;
-            CBTransformHostRect(m, &k->canon, &want);
-            if (!EqualRect(&cur, &want))
+            /*  A collapsed rect is the host parking the window, not
+                laying it out.  Remembering one as canonical would strand
+                the window for good. */
+            if (canon.right > canon.left && canon.bottom > canon.top)
             {
-                k->canon = cur;                  /* moved behind our back */
-                CBTransformHostRect(m, &k->canon, &want);
-                if (!EqualRect(&cur, &want)) CBPlaceHostKid(m, h, &want);
+                k->canon = canon;
+
+                RECT t;
+                CBTransformHostRect(m, &canon, &t);
+                CBHostLog("CHANGING %-12s flags=%08X canon=%d,%d,%d,%d -> %d,%d,%d,%d \r\n",
+                          CBClsOf(h), p->flags,
+                          canon.left, canon.top, canon.right, canon.bottom,
+                          t.left, t.top, t.right, t.bottom);
+                p->x  = t.left;
+                p->y  = t.top;
+                p->cx = t.right - t.left;
+                p->cy = t.bottom - t.top;
+                p->flags &= ~(SWP_NOMOVE | SWP_NOSIZE);
             }
         }
+        return r;
     }
 
     if (msg == WM_NCDESTROY)
@@ -2301,8 +2352,15 @@ static void CBApplyHostLayout(CBManager* m)
         CBTransformHostRect(m, &k.canon, &t);
         RECT cur;
         CBRectToClient(m->parent, k.hwnd, &cur);
+        CBHostLog("APPLY    %-12s canon=%d,%d,%d,%d cur=%d,%d,%d,%d -> %d,%d,%d,%d%s\r\n",
+                  CBClsOf(k.hwnd),
+                  k.canon.left, k.canon.top, k.canon.right, k.canon.bottom,
+                  cur.left, cur.top, cur.right, cur.bottom,
+                  t.left, t.top, t.right, t.bottom,
+                  EqualRect(&t, &cur) ? " (already)" : "");
         if (EqualRect(&t, &cur)) continue;
-        CBPlaceHostKid(m, k.hwnd, &t);
+        RECT canon = k.canon;               /* the vector may move under us */
+        CBReplayHostKid(m, k.hwnd, &canon);
     }
 }
 
@@ -2334,6 +2392,8 @@ void CBReserveFromHost(CBManager* m)
         SetPropW(h, CBKIDPROP, (HANDLE)nk.oldProc);
         SetPropW(h, CBPROP, (HANDLE)m);
         m->hostKids.push_back(nk);
+        CBHostLog("HOOK     %-12s canon=%d,%d,%d,%d\r\n", CBClsOf(h),
+                  nk.canon.left, nk.canon.top, nk.canon.right, nk.canon.bottom);
     }
 
     CBApplyHostLayout(m);

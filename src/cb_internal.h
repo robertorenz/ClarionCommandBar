@@ -302,6 +302,12 @@ struct CBManager
     std::vector<CBAccel>        accels;
 
     RECT           clientRc;        /* what CB_GetClientRect reports    */
+    /*  What the docked bars take off each edge, as THICKNESSES.  Kept
+        apart from clientRc on purpose: a thickness stays true when the
+        host is resized, whereas clientRc's right/bottom are coordinates
+        that go stale the instant the window changes size - and the host
+        moves its own children long before it tells us to lay out. */
+    int            insL, insT, insR, insB;
     bool           inLayout;
     bool           destroying;
 
@@ -318,7 +324,6 @@ struct CBManager
        starts a fight.  Correcting WM_WINDOWPOSCHANGING wins instead. */
     std::vector<CBHostKid> hostKids;
     int            reserve;         /* 1 on, 0 off, -1 auto             */
-    bool           fixingHost;      /* our own SetWindowPos is in flight */
 
     /* the popup-menu chain currently on screen (container ids) */
     std::vector<int> menuChain;
@@ -372,7 +377,7 @@ struct CBManager
           procUser(0), inLayout(false), destroying(false), tipWnd(NULL),
           tipRt(NULL), menuCancelled(false), menuResult(0), menuResultItem(0),
           menuSwitchItem(0), suppressContainer(0), hostMenu(NULL),
-          reserve(-1), fixingHost(false),
+          reserve(-1),
           dragBar(0), dragActive(false), dragHint(NULL),
           dragDock(CBD_FLOAT), dragRow(0), dragApply(0),
           editWnd(NULL), editOldProc(NULL),
@@ -382,6 +387,7 @@ struct CBManager
         dragStart.x = dragStart.y = 0;
         ZeroMemory(dragThick, sizeof(dragThick));
         SetRectEmpty(&clientRc);
+        insL = insT = insR = insB = 0;
         ZeroMemory(col, sizeof(col));
         ZeroMemory(metric, sizeof(metric));
     }

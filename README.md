@@ -21,6 +21,13 @@ and disabled items still disabled. Choosing a mirrored row POSTs
 wrote goes on running and you re-declare nothing. Optionally the real menu is
 taken off the frame entirely, so the command bar *replaces* it.
 
+On an MDI frame the bar mirrors the **frame's own** `MENUBAR`. A menu that a
+child window merges in cannot be mirrored — the child's controls live on the
+child's thread and the merged Win32 menu is owner-drawn with no readable text —
+so use `PROP:NoMerge` on the children, or leave the real menu attached. The
+frame's toolbar and MDI client are moved out from under the bars either way,
+including across the toolbar Clarion rebuilds on every merge.
+
 ## What you get
 
 **Bars** dock top, bottom, left or right, stack in rows, sit side by side in a
@@ -188,7 +195,7 @@ CB.AddButton(grp, CMD:Copy, 'Copy', imgCopy)
 | `bin/` | `commandbar.dll` (32-bit), `testhost.exe`, MSVC import lib |
 | `clarion/` | `CommandBar.inc/.clw` — the wrapper class; `ClaCommandBar.tpl` — all four templates in one file; `commandbar.lib`; `INSTALL.md` |
 | `docs/` | screenshots |
-| `examples/` | `CommandBarShowcase/` — **start here**: a mirrored Clarion menu, a ribbon, docking on four edges, and a bar on a REGION. `CommandBarDemo/` — one window exercising every item type and all eleven themes |
+| `examples/` | `CommandBarShowcase/` — **start here**: a mirrored Clarion menu, a ribbon, docking on four edges, and a bar on a REGION. `CommandBarDemo/` — one window exercising every item type and all eleven themes. `MenuMirrorTest/` — mirroring on a plain WINDOW and on an MDI APPLICATION frame that opens a merging child |
 
 ## Building the DLL
 
@@ -214,6 +221,11 @@ Not by inspection:
   runs, which is how the z-order, icon-scaling and menu-detach defects were
   found; clicking a mirrored menu row was checked to fire the original `ITEM`,
   submenu rows included;
+* **the MDI frame path** — `examples\MenuMirrorTest\FrameMirrorTest` opens a
+  real MDI child, on its own thread, carrying its own `MENUBAR` and `TOOLBAR`,
+  which is how the space-reservation defects were found: the frame's children
+  were enumerated before and after the merge, and the DLL traces every host
+  child move to `%TEMP%\cbhost.log` when `CB_HOSTLOG=1` is set;
 * **the templates, through AppGen** — registered with `ClarionCL -tr`, the
   frame extension attached to a shipped example app's FRAME and the window
   extension to one of its browses, populated through TXA, generated, and the

@@ -11,6 +11,7 @@
   INCLUDE('CommandBar.inc'),ONCE
 
   MAP
+ChildWin PROCEDURE()
   END
 
 CB       CommandBarClass
@@ -46,6 +47,11 @@ AppFrame APPLICATION('Frame mirror test - an MDI APPLICATION'),AT(,,520,300), |
            ITEM('&About'),USE(?MAbout)
          END
        END
+       TOOLBAR,USE(?Toolbar)
+         BUTTON('VUTools'),USE(?B1),AT(4,2,50,14)
+         BUTTON('VuShowcase'),USE(?B2),AT(58,2,60,14)
+         BUTTON('Stimulsoft'),USE(?B3),AT(4,18,60,14)
+       END
      END
 
   CODE
@@ -63,7 +69,9 @@ AppFrame APPLICATION('Frame mirror test - an MDI APPLICATION'),AT(,,520,300), |
   rep = 'MirrorMenu returned ' & n & ' top-level menus.<13,10><13,10>' &        |
         CLIP(CB.MenuReport())
   SETCLIPBOARD(CLIP(rep))
-  AppFrame{PROP:StatusText, 1} = 'MirrorMenu found ' & n & ' menus - report on the clipboard'
+  AppFrame{PROP:StatusText, 1} = 'menus=' & n &                                  |
+      '  reserveMode=' & CB.ReserveMode() &                                      |
+      '  clientY=' & CB.ClientY() & '  clientH=' & CB.ClientHeight()
 
   ACCEPT
     CASE EVENT()
@@ -76,7 +84,8 @@ AppFrame APPLICATION('Frame mirror test - an MDI APPLICATION'),AT(,,520,300), |
     END
     CASE ACCEPTED()
     OF ?MNew
-      AppFrame{PROP:StatusText, 1} = '?MNew fired from the mirrored bar'
+      AppFrame{PROP:StatusText, 1} = '?MNew fired - opening an MDI child'
+      START(ChildWin)
     OF ?MR1
       AppFrame{PROP:StatusText, 1} = '?MR1 fired - from the SUBMENU'
     OF ?MTrees
@@ -89,3 +98,40 @@ AppFrame APPLICATION('Frame mirror test - an MDI APPLICATION'),AT(,,520,300), |
   END
   CB.Kill()
   CLOSE(AppFrame)
+
+!  An MDI child carrying its own MENUBAR and TOOLBAR, so Clarion MERGES
+!  both into the frame while it is open.  That merge is what made the
+!  frame's toolbar vanish.
+ChildWin PROCEDURE()
+
+ChildQ QUEUE,PRE(CQ)
+Name     STRING(30)
+       END
+i      SIGNED
+
+Window WINDOW('Browse the Enrollment File'),AT(,,300,180),MDI,SYSTEM,GRAY,RESIZE, |
+         FONT('Segoe UI',9)
+       MENUBAR
+         MENU('&Child')
+           ITEM('Child &action'),USE(?CAction)
+         END
+       END
+       TOOLBAR
+         BUTTON('Child tool'),USE(?CTool),AT(4,2,60,14)
+       END
+       LIST,AT(4,4,292,150),USE(?CList),FROM(ChildQ),HVSCROLL, |
+         FORMAT('280L(2)|M~Name~@s30@')
+       BUTTON('&Close'),AT(240,160,50,14),USE(?CClose),STD(STD:Close)
+     END
+
+  CODE
+  OPEN(Window)
+  LOOP i = 1 TO 8
+    CLEAR(ChildQ)
+    CQ:Name = 'Enrollment row ' & i
+    ADD(ChildQ)
+  END
+  DISPLAY
+  ACCEPT
+  END
+  CLOSE(Window)
