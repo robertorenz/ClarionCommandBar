@@ -7,3 +7,11 @@
 obj/
 map/
 *.tmp
+
+# build.bat stages these into the example folders; the originals live in
+# clarion/ and bin/, so a copy in git would only ever go stale
+examples/*/CommandBar.inc
+examples/*/CommandBar.clw
+examples/*/commandbar.lib
+examples/*/commandbar.dll
+examples/*/*.exe
