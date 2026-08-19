@@ -60,7 +60,11 @@ like a menu bar. `TrackMenu` pops one anywhere for a context menu.
 
 **Docking on every edge at once**, plus a floating bar and a status strip —
 and `ClientX/Y/Width/Height` reports exactly what is left for your own
-controls:
+controls. **Drag a bar by its gripper** to move it: a translucent hint shows
+where it would land, an edge docks it there (re-laid out for that
+orientation — a wide toolbar becomes a narrow column down the side), and the
+middle tears it off into a floating frame. Drag a floating bar by its caption
+to put it back. `Esc` cancels mid-drag:
 
 ![docking](docs/docking.png)
 

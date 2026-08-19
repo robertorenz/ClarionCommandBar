@@ -2032,6 +2032,321 @@ LRESULT CALLBACK CBMenuProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 }
 
 /*=====================================================================
+  Dragging a bar to a new dock, or off into a floating frame
+
+  The gripper is the handle on a docked bar and the caption is the
+  handle on a floating one.  Nothing moves while the mouse is down: a
+  translucent hint window shows the strip the bar would land in, and the
+  drop is applied afterwards.  Showing the target instead of dragging
+  the real bar is what makes docking to an edge readable at all - and it
+  avoids re-laying the whole window out on every mouse move.
+  =====================================================================*/
+
+/* The drag handle on a docked bar - the same strip PaintBar draws the
+   gripper dots in. */
+bool CBGripperRect(CBManager* m, CBContainer* c, RECT* out)
+{
+    if (!c || c->kind != CBK_BAR) return false;
+    if (!(c->style & CBBS_GRIPPER)) return false;
+    if (c->dock == CBD_FLOAT || c->dock == CBD_FIXED) return false;
+
+    RECT rc;
+    GetClientRect(c->hwnd, &rc);
+    *out = rc;
+    bool vert = (c->dock == CBD_LEFT || c->dock == CBD_RIGHT);
+    if (vert) out->bottom = out->top + (int)(8 * m->dpiScale);
+    else      out->right  = out->left + (int)(8 * m->dpiScale);
+    return true;
+}
+
+/* Which row of `dock` a point falls in, as an INSERTION index. */
+static int CBRowAt(CBManager* m, int dock, POINT cp, CBContainer* skip)
+{
+    const bool horiz = (dock == CBD_TOP || dock == CBD_BOTTOM);
+    std::vector<int> rows, lo, hi;
+
+    std::map<int, CBContainer*>::iterator i;
+    for (i = m->containers.begin(); i != m->containers.end(); ++i)
+    {
+        CBContainer* c = i->second;
+        if (c->kind != CBK_BAR || c == skip) continue;
+        if (!c->visible || c->dock != dock || !c->hwnd) continue;
+
+        RECT wr;
+        GetWindowRect(c->hwnd, &wr);
+        POINT tl;
+        tl.x = wr.left;
+        tl.y = wr.top;
+        POINT br;
+        br.x = wr.right;
+        br.y = wr.bottom;
+        ScreenToClient(m->parent, &tl);
+        ScreenToClient(m->parent, &br);
+        int a = horiz ? tl.y : tl.x;
+        int b = horiz ? br.y : br.x;
+
+        size_t k = 0;
+        for (; k < rows.size(); ++k) if (rows[k] == c->dockRow) break;
+        if (k == rows.size())
+        {
+            rows.push_back(c->dockRow);
+            lo.push_back(a);
+            hi.push_back(b);
+        }
+        else
+        {
+            if (a < lo[k]) lo[k] = a;
+            if (b > hi[k]) hi[k] = b;
+        }
+    }
+    if (rows.empty()) return 0;
+
+    for (size_t a = 0; a + 1 < rows.size(); ++a)          /* by row number */
+        for (size_t b = a + 1; b < rows.size(); ++b)
+            if (rows[b] < rows[a])
+            {
+                int t = rows[a]; rows[a] = rows[b]; rows[b] = t;
+                t = lo[a];  lo[a] = lo[b];  lo[b] = t;
+                t = hi[a];  hi[a] = hi[b];  hi[b] = t;
+            }
+
+    const int pos = horiz ? cp.y : cp.x;
+    /* Rows are numbered from the docked edge inward, so on TOP/LEFT they
+       run one way down the screen and on BOTTOM/RIGHT the other. */
+    const bool inward = (dock == CBD_TOP || dock == CBD_LEFT);
+    for (size_t k = 0; k < rows.size(); ++k)
+    {
+        int mid = (lo[k] + hi[k]) / 2;
+        if (inward ? (pos < mid) : (pos > mid)) return rows[k];
+    }
+    return rows[rows.size() - 1] + 1;
+}
+
+/* Where would the drop land?  Fills dock/row and the hint rect (screen). */
+static void CBDragTarget(CBManager* m, POINT sp, int* dock, int* row, RECT* hint)
+{
+    *dock = CBD_FLOAT;
+    *row  = 0;
+
+    CBContainer* c = CBFindContainer(m, m->dragBar);
+    if (!c) { SetRectEmpty(hint); return; }
+
+    RECT pc;
+    GetClientRect(m->parent, &pc);
+    POINT cp = sp;
+    ScreenToClient(m->parent, &cp);
+
+    const int edge = (int)(44 * m->dpiScale);
+    RECT cr = m->clientRc;
+    int d = -1;
+
+    if (PtInRect(&pc, cp))
+    {
+        if      (cp.y < cr.top    + edge) d = CBD_TOP;
+        else if (cp.y > cr.bottom - edge) d = CBD_BOTTOM;
+        else if (cp.x < cr.left   + edge) d = CBD_LEFT;
+        else if (cp.x > cr.right  - edge) d = CBD_RIGHT;
+    }
+
+    /* A bar that may not float has nowhere else to go, so a drop in the
+       middle keeps it where it is rather than doing nothing visible. */
+    if (d < 0 && !(c->style & CBBS_FLOATABLE) && c->dock != CBD_FLOAT)
+        d = c->dock;
+
+    RECT r;
+    if (d < 0)                                   /* float at the pointer */
+    {
+        int w = c->measW > 0 ? c->measW : (int)(160 * m->dpiScale);
+        int h = c->measH > 0 ? c->measH : (int)(40  * m->dpiScale);
+        r.left   = sp.x - m->dragOff.x;
+        r.top    = sp.y - m->dragOff.y;
+        r.right  = r.left + w;
+        r.bottom = r.top + h;
+        *hint = r;
+        return;
+    }
+
+    *dock = d;
+    *row  = CBRowAt(m, d, cp, c);
+
+    int th = m->dragThick[d];
+    if (th < 1) th = (int)(26 * m->dpiScale);
+    r = cr;
+    switch (d)
+    {
+    case CBD_TOP:    r.bottom = r.top + th;    break;
+    case CBD_BOTTOM: r.top    = r.bottom - th; break;
+    case CBD_LEFT:   r.right  = r.left + th;   break;
+    default:         r.left   = r.right - th;  break;
+    }
+    POINT tl;
+    tl.x = r.left;
+    tl.y = r.top;
+    POINT br;
+    br.x = r.right;
+    br.y = r.bottom;
+    ClientToScreen(m->parent, &tl);
+    ClientToScreen(m->parent, &br);
+    hint->left = tl.x; hint->top = tl.y; hint->right = br.x; hint->bottom = br.y;
+}
+
+static void CBShowHint(CBManager* m, const RECT* r)
+{
+    if (!m->dragHint)
+    {
+        m->dragHint = CreateWindowExW(WS_EX_LAYERED | WS_EX_TRANSPARENT |
+                                      WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE |
+                                      WS_EX_TOPMOST,
+                                      CBWC_HINT, L"", WS_POPUP,
+                                      0, 0, 10, 10, NULL, NULL, g_inst, NULL);
+        if (!m->dragHint) return;
+        SetLayeredWindowAttributes(m->dragHint, 0, 110, LWA_ALPHA);
+    }
+    SetWindowLongPtrW(m->dragHint, GWLP_USERDATA, (LONG_PTR)m->col[CBC_ACCENT]);
+    SetWindowPos(m->dragHint, HWND_TOPMOST, r->left, r->top,
+                 r->right - r->left, r->bottom - r->top,
+                 SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    InvalidateRect(m->dragHint, NULL, TRUE);
+}
+
+/* How thick this bar would be if it were docked on `dock`.  Laying it
+   out for the target orientation is the only honest answer: the same
+   toolbar is 26px tall across the top and ~90px wide down the side. */
+static int CBMeasureFor(CBManager* m, CBContainer* c, int dock)
+{
+    RECT cr = m->clientRc;
+    int  save = c->dock;
+    int  th;
+
+    c->dock = dock;
+    if (dock == CBD_LEFT || dock == CBD_RIGHT)
+    {
+        CBLayoutBar(m, c, 0, cr.bottom - cr.top);
+        th = c->measW;
+    }
+    else
+    {
+        CBLayoutBar(m, c, cr.right - cr.left, 0);
+        th = c->measH;
+    }
+    c->dock = save;
+    return th;
+}
+
+void CBBeginDrag(CBManager* m, CBContainer* c, POINT screenPt)
+{
+    if (!c || c->kind != CBK_BAR) return;
+    if (c->style & CBBS_LOCKED) return;
+
+    for (int d = CBD_TOP; d <= CBD_RIGHT; ++d)
+        m->dragThick[d] = CBMeasureFor(m, c, d);
+    /* put the bar's own layout back the way the drag found it */
+    {
+        RECT wrc;
+        GetClientRect(c->hwnd, &wrc);
+        CBLayoutBar(m, c, wrc.right, wrc.bottom);
+    }
+
+    RECT wr;
+    GetWindowRect(c->hwnd, &wr);
+    m->dragBar    = c->id;
+    m->dragOff.x  = screenPt.x - wr.left;
+    m->dragOff.y  = screenPt.y - wr.top;
+    m->dragStart  = screenPt;
+    m->dragActive = false;
+    m->dragDock   = c->dock;
+    m->dragRow    = c->dockRow;
+    SetCapture(c->hwnd);
+}
+
+void CBUpdateDrag(CBManager* m, POINT screenPt)
+{
+    if (!m->dragBar) return;
+
+    if (!m->dragActive)
+    {
+        int dx = screenPt.x - m->dragStart.x;
+        int dy = screenPt.y - m->dragStart.y;
+        if (dx < 0) dx = -dx;
+        if (dy < 0) dy = -dy;
+        int th = (int)(4 * m->dpiScale);
+        if (dx < th && dy < th) return;            /* just a click so far */
+        m->dragActive = true;
+    }
+
+    if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) { CBEndDrag(m, false); return; }
+
+    RECT hint;
+    CBDragTarget(m, screenPt, &m->dragDock, &m->dragRow, &hint);
+    if (!IsRectEmpty(&hint)) CBShowHint(m, &hint);
+}
+
+void CBEndDrag(CBManager* m, bool apply)
+{
+    if (!m->dragBar) return;
+
+    /* Clear the state FIRST.  ReleaseCapture() below sends
+       WM_CAPTURECHANGED straight back to the bar window, whose handler
+       calls this function again to cancel the drag - and that re-entry
+       used to wipe the drop before it had been posted. */
+    int  bar = m->dragBar;
+    bool act = m->dragActive;
+    m->dragBar    = 0;
+    m->dragActive = false;
+
+    CBContainer* c = CBFindContainer(m, bar);
+    if (c && c->hwnd && GetCapture() == c->hwnd) ReleaseCapture();
+
+    if (m->dragHint)
+    {
+        DestroyWindow(m->dragHint);
+        m->dragHint = NULL;
+    }
+    if (!apply || !act) return;
+
+    /* Applying can destroy and recreate the bar's window, which must not
+       happen inside that window's own message handler. */
+    m->dragApply = bar;
+    PostMessageW(m->parent, CBMSG_APPLYDRAG, 0, 0);
+}
+
+void CBApplyDrag(CBManager* m)
+{
+    int bar = m->dragApply;
+    m->dragApply = 0;
+    if (!bar) return;
+
+    CBContainer* c = CBFindContainer(m, bar);
+    if (!c) return;
+
+    if (m->dragDock == CBD_FLOAT)
+    {
+        if (!(c->style & CBBS_FLOATABLE)) return;
+        POINT sp;
+        GetCursorPos(&sp);
+        CB_FloatBar(m, bar, sp.x - m->dragOff.x, sp.y - m->dragOff.y);
+        return;
+    }
+    CBInsertBarRow(m, bar, m->dragDock, m->dragRow);
+}
+
+LRESULT CALLBACK CBHintProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+    if (msg == WM_ERASEBKGND)
+    {
+        COLORREF col = (COLORREF)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+        HBRUSH b = CreateSolidBrush(col);
+        FillRect((HDC)wp, &rc, b);
+        DeleteObject(b);
+        return 1;
+    }
+    if (msg == WM_MOUSEACTIVATE) return MA_NOACTIVATE;
+    return DefWindowProcW(hwnd, msg, wp, lp);
+}
+
+/*=====================================================================
   14.  The bar window procedure
   =====================================================================*/
 /* Screen rect of one item, for the exclude rect of its popup. */
@@ -2235,12 +2550,7 @@ LRESULT CALLBACK CBBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         {
             POINT sp = p;
             ClientToScreen(hwnd, &sp);
-            SetWindowPos(hwnd, NULL, sp.x - m->dragOff.x, sp.y - m->dragOff.y,
-                         0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-            RECT wr;
-            GetWindowRect(hwnd, &wr);
-            c->floatX = wr.left;
-            c->floatY = wr.top;
+            CBUpdateDrag(m, sp);
             return 0;
         }
 
@@ -2334,11 +2644,19 @@ LRESULT CALLBACK CBBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             }
             POINT sp = p;
             ClientToScreen(hwnd, &sp);
-            m->dragBar   = c->id;
-            m->dragOff.x = sp.x - wr.left;
-            m->dragOff.y = sp.y - wr.top;
-            SetCapture(hwnd);
+            CBBeginDrag(m, c, sp);                 /* caption = drag handle */
             return 0;
+        }
+
+        {   /* the gripper is the drag handle on a DOCKED bar */
+            RECT gr;
+            if (CBGripperRect(m, c, &gr) && PtInRect(&gr, p))
+            {
+                POINT sp = p;
+                ClientToScreen(hwnd, &sp);
+                CBBeginDrag(m, c, sp);
+                return 0;
+            }
         }
 
         if (c->style & CBBS_RIBBON)
@@ -2383,8 +2701,7 @@ LRESULT CALLBACK CBBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     {
         if (m->dragBar == c->id)
         {
-            m->dragBar = 0;
-            ReleaseCapture();
+            CBEndDrag(m, true);
             return 0;
         }
         POINT p;
@@ -2422,10 +2739,25 @@ LRESULT CALLBACK CBBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     }
 
     case WM_SETCURSOR:
-        SetCursor(LoadCursor(NULL, IDC_ARROW));
+    {
+        POINT p;
+        GetCursorPos(&p);
+        ScreenToClient(hwnd, &p);
+        RECT gr;
+        if (!(c->style & CBBS_LOCKED) && CBGripperRect(m, c, &gr) &&
+            PtInRect(&gr, p))
+            SetCursor(LoadCursor(NULL, IDC_SIZEALL));
+        else
+            SetCursor(LoadCursor(NULL, IDC_ARROW));
         return TRUE;
+    }
+
+    case WM_CAPTURECHANGED:
+        if (m->dragBar == c->id && (HWND)lp != hwnd) CBEndDrag(m, false);
+        return 0;
 
     case WM_DESTROY:
+        if (m->dragBar == c->id) { m->dragBar = 0; m->dragActive = false; }
         CBDiscardRT(c);
         return 0;
     }
@@ -2435,6 +2767,8 @@ LRESULT CALLBACK CBBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 /*=====================================================================
   15.  Window class registration
   =====================================================================*/
+LRESULT CALLBACK CBHintProc(HWND, UINT, WPARAM, LPARAM);
+
 void CBRegisterClasses(void)
 {
     if (g_classesDone) return;
@@ -2459,6 +2793,11 @@ void CBRegisterClasses(void)
     wc.style         = CS_SAVEBITS;
     wc.lpfnWndProc   = CBTipProc;
     wc.lpszClassName = CBWC_TIP;
+    RegisterClassExW(&wc);
+
+    wc.style         = 0;
+    wc.lpfnWndProc   = CBHintProc;
+    wc.lpszClassName = CBWC_HINT;
     RegisterClassExW(&wc);
 
     g_classesDone = true;

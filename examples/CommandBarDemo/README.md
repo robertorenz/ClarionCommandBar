@@ -30,7 +30,8 @@ otherwise drop a stale one on top.
 | **View → Theme** | all eleven themes, live |
 | **View → Re-accent** | rebuilds the whole palette around one accent colour |
 | **View → Side bar** | hides the left dock; the list re-fits itself |
-| **View → Float the format bar** | drag its caption, double-click it to re-dock |
+| **Drag either gripper** | the ribbed handle at the left of the Standard or Format bar. Drop it on an edge to dock it there, or in the middle to tear it off. `Esc` cancels |
+| **View → Float the format bar** | drag its caption back to an edge to re-dock, or double-click it |
 | **Right-click** the list | a context menu popped at the pointer |
 | **Ctrl+N / Ctrl+O / Ctrl+S** | accelerators, through `ALRT()` and `TakeAlertKey` |
 

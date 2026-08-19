@@ -832,6 +832,10 @@ static LRESULT CALLBACK CBParentProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         CBRelayout(m);
         return r;
     }
+    case CBMSG_APPLYDRAG:
+        CBApplyDrag(m);
+        return 0;
+
     case WM_NCDESTROY:
     {
         SetWindowLongPtrW(hwnd, GWLP_WNDPROC, (LONG_PTR)old);
@@ -2013,6 +2017,24 @@ int CBAPI CB_GetTabAt(HCB cb, int bar, int index)
         if (t && t->kind == CBK_TAB && n++ == index) return t->id;
     }
     return 0;
+}
+
+/* Make room at `row` on `dock` and put `bar` there. */
+void CBInsertBarRow(CBManager* m, int bar, int dock, int row)
+{
+    CBContainer* b = CBFindContainer(m, bar);
+    if (!b || b->kind != CBK_BAR) return;
+    if (row < 0) row = 0;
+
+    std::map<int, CBContainer*>::iterator i;
+    for (i = m->containers.begin(); i != m->containers.end(); ++i)
+    {
+        CBContainer* c = i->second;
+        if (c->kind != CBK_BAR || c == b) continue;
+        if (c->dock != dock) continue;
+        if (c->dockRow >= row) c->dockRow++;
+    }
+    CB_SetBarDock(m, bar, dock, row, 0);
 }
 
 void CBAPI CB_SetBarRect(HCB cb, int bar, int x, int y, int w, int h)

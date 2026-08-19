@@ -33,10 +33,17 @@
 #define CBWC_BAR   L"ClaCommandBar.Bar"
 #define CBWC_MENU  L"ClaCommandBar.Menu"
 #define CBWC_TIP   L"ClaCommandBar.Tip"
+#define CBWC_HINT  L"ClaCommandBar.Hint"
 
 /*---------------------------------------------------------------------
   Timers used on a bar window.
   ---------------------------------------------------------------------*/
+/* Applying a drag DESTROYS and recreates the dragged bar's window when
+   it changes between child and popup - which must not happen inside
+   that window's own message handler.  The drop is posted to the parent
+   and applied from there instead. */
+#define CBMSG_APPLYDRAG (WM_APP + 0x5B)
+
 #define CBTIMER_TIPSHOW  1      /* hover dwell before a tooltip appears */
 #define CBTIMER_TIPHIDE  2      /* auto-hide the tooltip again          */
 #define CB_TIPDELAY      600
@@ -310,9 +317,23 @@ struct CBManager
        Kept, never destroyed - the field equates behind it stay live. */
     HMENU          hostMenu;
 
-    /* dragging a floating bar by its caption */
+    /* Dragging a bar by its gripper (docked) or its caption (floating).
+       Nothing moves until the drop: a translucent hint window shows
+       where the bar would land, which is the only way to make docking
+       to an edge readable. */
     int            dragBar;
-    POINT          dragOff;
+    POINT          dragOff;      /* grab point inside the bar          */
+    POINT          dragStart;    /* screen, for the movement threshold */
+    bool           dragActive;   /* past the threshold                 */
+    HWND           dragHint;
+    int            dragDock;     /* CBD_* the drop would apply         */
+    int            dragRow;
+    int            dragApply;    /* the bar the posted drop belongs to */
+    /* How thick the bar would be docked on each side, measured once at
+       the start of the drag.  A toolbar docked on TOP is wide and short;
+       the same bar on LEFT is narrow and tall, so its CURRENT size is
+       the wrong hint for a vertical target. */
+    int            dragThick[6];
 
     /* the overlay EDIT control used while typing in a CBI_EDIT item.
        Painting our own caret and selection would mean reimplementing
@@ -329,10 +350,14 @@ struct CBManager
           procUser(0), inLayout(false), destroying(false), tipWnd(NULL),
           tipRt(NULL), menuCancelled(false), menuResult(0), menuResultItem(0),
           menuSwitchItem(0), suppressContainer(0), hostMenu(NULL),
-          dragBar(0), editWnd(NULL), editOldProc(NULL),
+          dragBar(0), dragActive(false), dragHint(NULL),
+          dragDock(CBD_FLOAT), dragRow(0), dragApply(0),
+          editWnd(NULL), editOldProc(NULL),
           editItem(0), editFont(NULL)
     {
         dragOff.x = dragOff.y = 0;
+        dragStart.x = dragStart.y = 0;
+        ZeroMemory(dragThick, sizeof(dragThick));
         SetRectEmpty(&clientRc);
         ZeroMemory(col, sizeof(col));
         ZeroMemory(metric, sizeof(metric));
@@ -426,6 +451,15 @@ void           CBCloseMenus(CBManager* m);
 /* Tooltip */
 void           CBShowTip(CBManager* m, CBContainer* c, CBItem* it);
 void           CBHideTip(CBManager* m);
+
+/* Dragging a bar to a new dock, or off into a floating frame */
+bool           CBGripperRect(CBManager* m, CBContainer* c, RECT* out);
+void           CBBeginDrag(CBManager* m, CBContainer* c, POINT screenPt);
+void           CBUpdateDrag(CBManager* m, POINT screenPt);
+void           CBEndDrag(CBManager* m, bool apply);
+void           CBApplyDrag(CBManager* m);
+/* Dock `bar` at `row`, pushing every other bar on that side down. */
+void           CBInsertBarRow(CBManager* m, int bar, int dock, int row);
 
 /* Overlay edit control */
 void           CBBeginEdit(CBManager* m, CBContainer* c, CBItem* it);

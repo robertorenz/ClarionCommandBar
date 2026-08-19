@@ -229,6 +229,33 @@ runs, with nothing duplicated.
 
 Where two items share one command id, the **first** of them decides the action.
 
+### 5b6. Moving a bar at run time
+
+A bar the user can move needs a handle, and the handle is the **gripper** —
+tick *Drag gripper* on it. Then:
+
+| Drag it to | What happens |
+|---|---|
+| near any edge of the client area | it docks there, re-laid out for that orientation: a wide toolbar becomes a narrow column down the side |
+| the middle | it tears off into a floating frame with a caption (only if *User may float it* is ticked) |
+| a floating bar's **caption**, back to an edge | it re-docks |
+
+While the mouse is down nothing moves — a translucent hint shows the strip the
+bar would land in. **`Esc` cancels** the drag. Dropping between two existing
+rows inserts a row and pushes the others along.
+
+Two style flags decide what is allowed:
+
+* *Drag gripper* (`CBBS:Gripper`) — no gripper, no drag handle, so the bar
+  cannot be moved. This is what keeps a menu bar put.
+* *User may float it* (`CBBS:Floatable`) — without it, a drop in the middle
+  leaves the bar where it was instead of floating it.
+* `CBBS:Locked` refuses the drag outright.
+
+Double-clicking a floating bar's caption sends it back to the top, and the
+little **x** on the caption hides it (`CB.SetBarVisible(bar, 1)` brings it
+back).
+
 ### 5c. Putting your own controls under the bars
 
 The bars take space off the top / bottom / sides of the window. Whatever is
@@ -336,6 +363,8 @@ A 24px slot for 32px art looks far better than a 16px one.
 | A plain menu row grows a check mark every time it is picked | *auto-check* is ticked on it. That setting is for menu rows that behave like a setting; toggle buttons and check boxes do it anyway |
 | `Illegal data type: COMMANDBAR` on the generated object | a `#INSERT` that emits LABELS was indented. `#INSERT` carries the indentation of its own line into every line the group emits, and a Clarion label must start in column 1 — `#INSERT(%CBEmitData)` and `#INSERT(%CBEmitFitRoutine)` sit at column 0 for that reason |
 | The mirrored bar appears but the Clarion menu is still above it | *Mirror it onto a command bar* was chosen instead of *…take the original menu off the frame*. If you picked the latter and it still shows, the host window is not the one the manager was created on |
+| A bar will not drag | it has no *Drag gripper*, or it is `CBBS:Locked`. The gripper is the handle — the cursor turns into a move cursor over it |
+| A bar will not float, only re-dock | *User may float it* is off |
 | The mirrored bar is **empty** | `MirrorMenu` found no MENU whose `PROP:Parent` is the menubar. Call `CB.MenuReport()` and read what it says: if `PROP:MenuBar` is 0 the window has no menubar of its own (mirror on the **FRAME**, not on an MDI child, or pass the equate to `MirrorMenuFrom`) |
 | A mirrored row does nothing | its original `ITEM` has no `CASE ACCEPTED()` branch — mirroring only forwards the click, it does not invent behaviour |
 | A ribbon group is empty | the item's *Put it in* names the TAB, not the GROUP. Items go in a group |
