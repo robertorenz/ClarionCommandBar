@@ -820,24 +820,79 @@ mods SIGNED
 !     synthetic range that starts at the menubar's own equate.
 !---------------------------------------------------------------------
 CommandBarClass.MirrorMenu PROCEDURE(SIGNED bar, BYTE hideOriginal=1)
-mb    SIGNED
-feq   SIGNED
-top   SIGNED
-sub   SIGNED
-n     SIGNED
+mb SIGNED
   CODE
   IF ~SELF.CB OR SELF.Win &= NULL THEN RETURN 0.
   SETTARGET(SELF.Win)
   mb = 0{PROP:MenuBar}
-  IF ~mb
-    SETTARGET()
-    RETURN 0
+  IF ~mb THEN mb = SELF.FindMenuBar().      ! ask, then look
+  SETTARGET()
+  RETURN SELF.MirrorMenuFrom(bar, mb, hideOriginal)
+
+!  Menu controls do NOT live in one predictable place.  Measured on
+!  Clarion 12: a MENUBAR or MENU carrying a USE gets an ordinary LOW
+!  field equate (an AppGen frame answers PROP:MenuBar = 1), while one
+!  without a USE gets a SYNTHETIC equate at 8000h and up - and a window
+!  is free to mix the two, which is exactly what a hand-written
+!  MENUBAR full of USE-less MENUs does.
+!
+!  So both ranges are scanned and filtered on PROP:Parent.  Scanning a
+!  window around the menubar's own equate - which is what this used to
+!  do - finds nothing at all when the menubar and its menus land in
+!  different ranges, and the symptom is a mirrored bar with no titles
+!  on it.
+CommandBarClass.MirrorMenuFrom PROCEDURE(SIGNED bar, SIGNED menuBarFeq, BYTE hideOriginal=1)
+MenuQ QUEUE,PRE(MQ)
+Feq     SIGNED
+Order   LONG
+      END
+pass SIGNED
+lo   SIGNED
+hi   SIGNED
+feq  SIGNED
+top  SIGNED
+sub  SIGNED
+i    SIGNED
+n    SIGNED
+  CODE
+  IF ~SELF.CB OR SELF.Win &= NULL OR ~menuBarFeq THEN RETURN 0.
+  SETTARGET(SELF.Win)
+  FREE(MenuQ)
+
+  !  ---- find every top-level MENU ----
+  LOOP pass = 1 TO 2
+    IF pass = 1                              ! controls that carry a USE
+      lo = 1
+      hi = LASTFIELD()
+    ELSE                                     ! and those that do not
+      lo = 08000h
+      hi = 08000h + 1023
+    END
+    LOOP feq = lo TO hi
+      IF feq = menuBarFeq THEN CYCLE.
+      IF feq{PROP:Type} <> CREATE:menu THEN CYCLE.
+      IF feq{PROP:Parent} <> menuBarFeq THEN CYCLE.
+      CLEAR(MenuQ)
+      MQ:Feq   = feq
+      MQ:Order = SELF.MinFeqIn(feq)
+      ADD(MenuQ)
+    END
   END
 
+  !  ---- put them back in DECLARATION order ----
+  !  The equates alone cannot do it.  Clarion hands out LOW equates to
+  !  controls that carry a USE and SYNTHETIC ones (8000h up) to those
+  !  that do not, as two independent sequences - so a menubar holding
+  !  &File (no USE, 8000h) and &Edit (USE, 7) sorts backwards on feq.
+  !  The lowest equate anywhere in a menu's SUBTREE does work, because
+  !  the items inside the first menu are always declared before the
+  !  items inside the second whichever range they land in.
+  SORT(MenuQ, MQ:Order)
+
   n = 0
-  LOOP feq = mb + 1 TO mb + 1024
-    IF feq{PROP:Type} <> CREATE:menu THEN CYCLE.
-    IF feq{PROP:Parent} <> mb THEN CYCLE.
+  LOOP i = 1 TO RECORDS(MenuQ)
+    GET(MenuQ, i)
+    feq = MQ:Feq
     sub = SELF.CreateMenu()
     top = SELF.AddMenuTitle(bar, feq{PROP:Text}, sub)
     IF ~top THEN CYCLE.
@@ -845,6 +900,7 @@ n     SIGNED
     SELF.MirrorInto(sub, feq)
     n += 1
   END
+  FREE(MenuQ)
 
   !  A MENUBAR ignores PROP:Hide, so the DLL detaches the real Win32
   !  menu instead.  The ITEMs behind it stay valid, which is what makes
@@ -852,6 +908,106 @@ n     SIGNED
   IF hideOriginal AND n THEN CB_SetHostMenuVisible(SELF.CB, 0).
   SETTARGET()
   RETURN n
+
+!  Lowest field equate in a menu's whole subtree, its own included.
+!  Assumes SETTARGET(SELF.Win) is active.
+CommandBarClass.MinFeqIn PROCEDURE(SIGNED menuFeq)
+n     SIGNED
+child SIGNED
+best  LONG
+sub   LONG
+  CODE
+  best = menuFeq
+  LOOP n = 1 TO 512
+    child = menuFeq{PROP:Child, n}
+    IF ~child THEN BREAK.
+    IF child < best THEN best = child.
+    IF child{PROP:Type} = CREATE:menu
+      sub = SELF.MinFeqIn(child)
+      IF sub < best THEN best = sub.
+    END
+  END
+  RETURN best
+
+!  The MENUBAR control itself, wherever it landed.
+CommandBarClass.FindMenuBar PROCEDURE()
+pass SIGNED
+lo   SIGNED
+hi   SIGNED
+feq  SIGNED
+res  SIGNED
+  CODE
+  IF SELF.Win &= NULL THEN RETURN 0.
+  res = 0
+  SETTARGET(SELF.Win)
+  LOOP pass = 1 TO 2
+    IF pass = 1
+      lo = 1
+      hi = LASTFIELD()
+    ELSE
+      lo = 08000h
+      hi = 08000h + 1023
+    END
+    LOOP feq = lo TO hi
+      IF feq{PROP:Type} = CREATE:menubar
+        res = feq
+        BREAK
+      END
+    END
+    IF res THEN BREAK.
+  END
+  SETTARGET()
+  RETURN res
+
+!  Why is my mirrored bar empty?  This says so in words.
+CommandBarClass.MenuReport PROCEDURE()
+mb    SIGNED
+found SIGNED
+pass  SIGNED
+lo    SIGNED
+hi    SIGNED
+feq   SIGNED
+res   STRING(2000)
+  CODE
+  IF SELF.Win &= NULL THEN RETURN 'No window - call Init first.'.
+  SETTARGET(SELF.Win)
+  mb = 0{PROP:MenuBar}
+  res = 'PROP:MenuBar = ' & mb
+  IF ~mb
+    mb = SELF.FindMenuBar()
+    SETTARGET(SELF.Win)
+    res = CLIP(res) & ' (0), scanned and found ' & mb
+  END
+  IF ~mb
+    SETTARGET()
+    RETURN CLIP(res) & '<13,10>This window has no MENUBAR.  If the menu ' &      |
+           'belongs to the application FRAME, mirror it on the FRAME, ' &        |
+           'not here.'
+  END
+  res = CLIP(res) & '<13,10>FIRSTFIELD=' & FIRSTFIELD() & ' LASTFIELD=' & LASTFIELD()
+  found = 0
+  LOOP pass = 1 TO 2
+    IF pass = 1
+      lo = 1
+      hi = LASTFIELD()
+    ELSE
+      lo = 08000h
+      hi = 08000h + 1023
+    END
+    LOOP feq = lo TO hi
+      IF feq = mb THEN CYCLE.
+      IF feq{PROP:Type} <> CREATE:menu THEN CYCLE.
+      IF feq{PROP:Parent} <> mb THEN CYCLE.
+      found += 1
+      res = CLIP(res) & '<13,10>  menu feq=' & feq & '  order=' &                |
+            SELF.MinFeqIn(feq) & '  [' & CLIP(feq{PROP:Text}) & ']'
+    END
+  END
+  SETTARGET()
+  IF ~found
+    RETURN CLIP(res) & '<13,10>No MENU has PROP:Parent = ' & mb & '.'
+  END
+  RETURN CLIP(res) & '<13,10>' & found & ' top-level menus.'
 
 !  One level of a mirrored menu.  Assumes SETTARGET(SELF.Win) is active.
 CommandBarClass.MirrorInto PROCEDURE(SIGNED container, SIGNED menuFeq)

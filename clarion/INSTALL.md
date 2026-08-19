@@ -300,12 +300,18 @@ A 24px slot for 32px art looks far better than a 16px one.
   the window finishes opening. The menu is kept, not destroyed, and put back on
   `CB_Destroy`; the field equates stay valid the whole time, which is what lets
   a mirrored row still POST to its `ITEM`.
-* **Menu controls live outside `FIRSTFIELD()..LASTFIELD()`.** They occupy a
-  synthetic range that starts at `0{PROP:MenuBar}`. A MENU answers
-  `PROP:Child,n` with its immediate children **in declaration order**, submenus
-  and separators included — but the MENUBAR itself does not, so the top-level
-  menus are found by scanning for `CREATE:menu` controls whose `PROP:Parent` is
-  the menubar. A menu ITEM with empty `PROP:Text` is a separator.
+* **Menu controls do not all live in the same equate range.** One carrying a
+  `USE` gets an ordinary **low** equate — an AppGen frame answers
+  `0{PROP:MenuBar} = 1` — and one without a `USE` (an unnamed `MENU`, every
+  `ITEM,SEPARATOR`) gets a **synthetic** equate at `8000h` and up. A window
+  mixes both freely, and they are numbered as two independent sequences, so
+  **an equate is not a position**. `MirrorMenu` therefore scans both ranges,
+  filters on `PROP:Parent`, and sorts the top-level menus on the lowest equate
+  anywhere in each menu's subtree. See `examples\MenuMirrorTest`.
+* A MENU answers `PROP:Child,n` with its immediate children **in declaration
+  order**, submenus and separators included — but the MENUBAR itself does not,
+  which is why the top level has to be found by scanning. A menu ITEM with
+  empty `PROP:Text` is a separator.
 * **`CBE:DropDown` is queued before a menu opens,** but a Clarion app polling
   on a timer only sees it *after* the menu has closed. Filling a menu on the
   fly needs the immediate C callback (`CB_SetCallback`), not the poll queue.
@@ -330,6 +336,7 @@ A 24px slot for 32px art looks far better than a 16px one.
 | A plain menu row grows a check mark every time it is picked | *auto-check* is ticked on it. That setting is for menu rows that behave like a setting; toggle buttons and check boxes do it anyway |
 | `Illegal data type: COMMANDBAR` on the generated object | a `#INSERT` that emits LABELS was indented. `#INSERT` carries the indentation of its own line into every line the group emits, and a Clarion label must start in column 1 — `#INSERT(%CBEmitData)` and `#INSERT(%CBEmitFitRoutine)` sit at column 0 for that reason |
 | The mirrored bar appears but the Clarion menu is still above it | *Mirror it onto a command bar* was chosen instead of *…take the original menu off the frame*. If you picked the latter and it still shows, the host window is not the one the manager was created on |
+| The mirrored bar is **empty** | `MirrorMenu` found no MENU whose `PROP:Parent` is the menubar. Call `CB.MenuReport()` and read what it says: if `PROP:MenuBar` is 0 the window has no menubar of its own (mirror on the **FRAME**, not on an MDI child, or pass the equate to `MirrorMenuFrom`) |
 | A mirrored row does nothing | its original `ITEM` has no `CASE ACCEPTED()` branch — mirroring only forwards the click, it does not invent behaviour |
 | A ribbon group is empty | the item's *Put it in* names the TAB, not the GROUP. Items go in a group |
 | A toggle button no longer stays down | its style was overwritten. `SetItemStyle` **replaces** the style word — include `CBIS:AutoCheck` when you set it by hand |

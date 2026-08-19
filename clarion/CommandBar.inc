@@ -282,6 +282,17 @@ AddMenuTitle    PROCEDURE(SIGNED bar, STRING text, SIGNED menu),SIGNED,PROC
 !-- you already wrote has to change.  Returns the number of top-level
 !-- menus mirrored.  Call it AFTER the window is open.
 MirrorMenu      PROCEDURE(SIGNED bar, BYTE hideOriginal=1),SIGNED,PROC,VIRTUAL
+!-- The same, but pointed at a MENUBAR you name yourself.  Use it when
+!-- 0{PROP:MenuBar} comes back 0 - an MDI child asked about the FRAME's
+!-- menu, say - or when a window carries more than one.
+MirrorMenuFrom  PROCEDURE(SIGNED bar, SIGNED menuBarFeq, BYTE hideOriginal=1),SIGNED,PROC,VIRTUAL
+!-- The window's MENUBAR control, found by scanning rather than by
+!-- asking.  0 if the window has none.
+FindMenuBar     PROCEDURE(),SIGNED
+!-- What MirrorMenu can see, as readable text: the menubar equate and
+!-- every top-level menu it found.  Paste it into a MESSAGE() when a
+!-- mirrored bar comes out empty and it will tell you why.
+MenuReport      PROCEDURE(),STRING
 !-- 'Ctrl+N' for a Clarion KEYCODE - what MirrorMenu puts in the shortcut
 !-- column, and useful on its own.
 KeyText         PROCEDURE(LONG clarionKeyCode),STRING
@@ -364,6 +375,10 @@ TakeRightClick  PROCEDURE(LONG cmd, SIGNED item),VIRTUAL
 PipeItem        PROCEDURE(STRING list, SIGNED ordinal),STRING
 !-- recursive worker behind MirrorMenu
 MirrorInto      PROCEDURE(SIGNED container, SIGNED menuFeq),PRIVATE
+!-- Lowest field equate anywhere in a menu's subtree.  Top-level menus
+!-- are sorted on it - see MirrorMenuFrom for why that is the only
+!-- reliable way to recover declaration order.
+MinFeqIn        PROCEDURE(SIGNED menuFeq),LONG,PRIVATE
               END
 
   _EndOfInclude_
