@@ -488,6 +488,7 @@ A 24px slot for 32px art looks far better than a 16px one.
 | Mirrored rows appear but **clicking does nothing** on a FRAME | fixed in v1.2. A frame numbers its menu controls NEGATIVE, so a mirrored command id lands just *below* `MirrorBase`, and the old test only matched ids above it |
 | The frame's menu gained items and the mirrored bar did not | an MDI child merged its menu in — that cannot be mirrored (see 5b8). Set `NOMERGE` on the child, or mirror with `HideOriginal` off |
 | The frame's TOOLBAR disappears when a procedure opens | check the frame's `TOOLBAR` for **`NOMERGE`** and clear it — that attribute drops the toolbar out of the merge, so opening any MDI child takes it away. It is not caused by the bars |
+| The frame's toolbar flickers when an MDI child opens or closes | some of that is Clarion's own: merging swaps the frame's toolbar for a merged one and unmerging swaps it back, so that strip is painted twice either way, with or without a command bar. What is ours is not: the bars are only repainted by a layout that actually moved something |
 | A frame child (toolbar, MDI client) sits in the wrong place | set `CB_HOSTLOG=1` in the environment and run again — every host-child move is traced to `%TEMP%\cbhost.log` |
 | A mirrored row does nothing | its original `ITEM` has no `CASE ACCEPTED()` branch — mirroring only forwards the click, it does not invent behaviour |
 | A ribbon group is empty | the item's *Put it in* names the TAB, not the GROUP. Items go in a group |

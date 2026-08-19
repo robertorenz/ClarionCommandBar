@@ -629,6 +629,20 @@ static void CollectSide(CBManager* m, int dock, std::vector<DockRowInfo>* out)
     }
 }
 
+/*  Is this bar already exactly where the layout wants it?  Used to tell
+    a layout that changed something from one that just re-ran. */
+static bool CBBarWouldMove(CBManager* m, HWND h, int x, int y, int w, int t)
+{
+    RECT r;
+    if (!GetWindowRect(h, &r)) return true;
+    POINT tl;
+    tl.x = r.left;
+    tl.y = r.top;
+    ScreenToClient(m->parent, &tl);
+    return tl.x != x || tl.y != y ||
+           (r.right - r.left) != w || (r.bottom - r.top) != t;
+}
+
 void CBRelayout(CBManager* m)
 {
     if (!m || m->inLayout || m->destroying || !IsWindow(m->parent)) return;
@@ -637,6 +651,8 @@ void CBRelayout(CBManager* m)
     RECT pc;
     GetClientRect(m->parent, &pc);
     int left = 0, top = 0, right = pc.right, bottom = pc.bottom;
+
+    bool moved = false;         /* did any bar window really move or resize? */
 
     HDWP dwp = BeginDeferWindowPos(8);
 
@@ -691,6 +707,8 @@ void CBRelayout(CBManager* m)
                        they were created they sit underneath it and never
                        show.  Re-asserted on every layout because the host
                        may reshuffle z-order on a resize. */
+                    if (CBBarWouldMove(m, bars[b]->hwnd, x, y, w, stripSize))
+                        moved = true;
                     dwp = DeferWindowPos(dwp, bars[b]->hwnd, HWND_TOP, x, y, w,
                                          stripSize,
                                          SWP_NOACTIVATE | SWP_SHOWWINDOW);
@@ -712,6 +730,8 @@ void CBRelayout(CBManager* m)
 
                     CBLayoutBar(m, bars[b], stripSize, h);
                     int x = (dock == CBD_LEFT) ? left : (right - stripSize);
+                    if (CBBarWouldMove(m, bars[b]->hwnd, x, y, stripSize, h))
+                        moved = true;
                     dwp = DeferWindowPos(dwp, bars[b]->hwnd, HWND_TOP, x, y,
                                          stripSize, h,
                                          SWP_NOACTIVATE | SWP_SHOWWINDOW);
@@ -738,6 +758,7 @@ void CBRelayout(CBManager* m)
         CBEnsureBarWindow(m, c);
         CBLayoutBar(m, c, 10000, 0);
         int w = c->measW, h = c->measH;
+        if (CBBarWouldMove(m, c->hwnd, c->floatX, c->floatY, w, h)) moved = true;
         SetWindowPos(c->hwnd, HWND_TOP, c->floatX, c->floatY, w, h,
                      SWP_NOACTIVATE | SWP_SHOWWINDOW);
     }
@@ -762,6 +783,8 @@ void CBRelayout(CBManager* m)
         if (fh < 1) fh = 1;
         CBLayoutBar(m, c, fw, fh);
         if (c->measH > fh) fh = c->measH;      /* never clip a ribbon */
+        if (CBBarWouldMove(m, c->hwnd, c->fixedRc.left, c->fixedRc.top, fw, fh))
+            moved = true;
         SetWindowPos(c->hwnd, HWND_TOP, c->fixedRc.left, c->fixedRc.top,
                      fw, fh, SWP_NOACTIVATE | SWP_SHOWWINDOW);
     }
@@ -789,9 +812,18 @@ void CBRelayout(CBManager* m)
        out of the strips the bars just took. */
     CBReserveFromHost(m);
 
-    for (i = m->containers.begin(); i != m->containers.end(); ++i)
-        if (i->second->kind == CBK_BAR && i->second->hwnd)
-            InvalidateRect(i->second->hwnd, NULL, FALSE);
+    /*  Repaint the bars only when this layout actually did something.
+        A layout runs several times over an MDI child opening or closing -
+        the host shuffles its own toolbar and client around and each nudge
+        brings us back through here - and repainting every bar each time
+        is a visible flash with nothing behind it.  Moving a window
+        repaints it by itself, so the only case left for an explicit
+        invalidate is a bar that stayed put while the layout around it
+        changed. */
+    if (changed || moved)
+        for (i = m->containers.begin(); i != m->containers.end(); ++i)
+            if (i->second->kind == CBK_BAR && i->second->hwnd)
+                InvalidateRect(i->second->hwnd, NULL, FALSE);
 
     m->inLayout = false;
     if (changed) CBQueue(m, 0, 0, CBE_LAYOUT, 0);
@@ -813,6 +845,7 @@ static void CBEnforceHostMenu(CBManager* m, HWND hwnd)
 {
     if (!m->hostMenu || m->destroying) return;
     if (!GetMenu(hwnd)) return;
+    CBHostLog("MENUOFF  Clarion put its menu back - taking it off again\r\n");
     SetMenu(hwnd, NULL);
     DrawMenuBar(hwnd);
     CBRelayout(m);
