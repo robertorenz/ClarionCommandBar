@@ -885,6 +885,29 @@ void CBRelayout(CBManager* m)
     if (anyVacated)
     {
         InvalidateRect(m->parent, &vacated, TRUE);
+
+        /*  The host's own children are SIBLINGS of the bars, so the
+            host repainting itself does not touch them - whatever a bar
+            drew over one of them stays there.  Repaint the ones the
+            bars just uncovered. */
+        for (size_t hk = 0; hk < m->hostKids.size(); ++hk)
+        {
+            HWND kh = m->hostKids[hk].hwnd;
+            if (!IsWindow(kh) || !IsWindowVisible(kh)) continue;
+            RECT kr, hit;
+            GetWindowRect(kh, &kr);
+            POINT tl;
+            tl.x = kr.left;
+            tl.y = kr.top;
+            ScreenToClient(m->parent, &tl);
+            RECT kc;
+            kc.left   = tl.x;
+            kc.top    = tl.y;
+            kc.right  = tl.x + (kr.right - kr.left);
+            kc.bottom = tl.y + (kr.bottom - kr.top);
+            if (IntersectRect(&hit, &kc, &vacated))
+                InvalidateRect(kh, NULL, TRUE);
+        }
         UpdateWindow(m->parent);
     }
 
@@ -2400,10 +2423,15 @@ static void CBTransformHostRect(CBManager* m, const RECT* canon, RECT* out)
 static void CBReplayHostKid(CBManager* m, HWND h, const RECT* canon)
 {
     (void)m;
+    /*  SWP_NOCOPYBITS: moving a window normally copies its pixels to the
+        new place, and a host child that had a bar sitting over part of
+        it carries THE BAR'S pixels along - which is how dragging a bar
+        straight from one side to the other left a copy of it printed on
+        the toolbar.  Repaint instead of blitting. */
     SetWindowPos(h, NULL, canon->left, canon->top,
                  canon->right - canon->left,
                  canon->bottom - canon->top,
-                 SWP_NOZORDER | SWP_NOACTIVATE);
+                 SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS);
 }
 
 static LRESULT CALLBACK CBHostKidProc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
@@ -2464,6 +2492,7 @@ static LRESULT CALLBACK CBHostKidProc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
                 p->cx = t.right - t.left;
                 p->cy = t.bottom - t.top;
                 p->flags &= ~(SWP_NOMOVE | SWP_NOSIZE);
+                p->flags |= SWP_NOCOPYBITS;   /* see CBReplayHostKid */
             }
         }
         return r;
