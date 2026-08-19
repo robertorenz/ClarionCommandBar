@@ -1,0 +1,81 @@
+LIBRARY COMMANDBAR
+; Ordinals are a public contract: the Clarion import library
+; (clarion\commandbar.lib) references them, so NEVER renumber or reuse
+; an ordinal.  New exports get the next free number, appended below.
+EXPORTS
+;   ---- lifetime ----
+    CB_Initialize        @1
+    CB_Shutdown          @2
+    CB_Create            @3
+    CB_Destroy           @4
+    CB_Layout            @5
+    CB_GetClientRect     @6
+    CB_Redraw            @7
+;   ---- theming ----
+    CB_SetTheme          @8
+    CB_GetTheme          @9
+    CB_SetColor          @10
+    CB_GetColor          @11
+    CB_SetFont           @12
+    CB_SetMetric         @13
+    CB_GetMetric         @14
+    CB_SetAccent         @15
+;   ---- images ----
+    CB_AddImage          @16
+    CB_AddImageStrip     @17
+    CB_AddImageHandle    @18
+    CB_GetImageCount     @19
+;   ---- containers ----
+    CB_AddBar            @20
+    CB_CreateMenu        @21
+    CB_DestroyContainer  @22
+    CB_ClearContainer    @23
+    CB_SetBarDock        @24
+    CB_GetBarDock        @25
+    CB_SetBarVisible     @26
+    CB_GetBarVisible     @27
+    CB_FloatBar          @28
+    CB_TrackMenu         @29
+;   ---- items ----
+    CB_AddItem           @30
+    CB_InsertItem        @31
+    CB_RemoveItem        @32
+    CB_SetItemText       @33
+    CB_GetItemText       @34
+    CB_SetItemImage      @35
+    CB_SetItemStyle      @36
+    CB_GetItemStyle      @37
+    CB_SetItemEnabled    @38
+    CB_GetItemEnabled    @39
+    CB_SetItemChecked    @40
+    CB_GetItemChecked    @41
+    CB_SetItemVisible    @42
+    CB_GetItemVisible    @43
+    CB_SetItemTooltip    @44
+    CB_SetItemShortcut   @45
+    CB_SetItemWidth      @46
+    CB_SetItemMenu       @47
+    CB_GetItemMenu       @48
+    CB_SetItemCmd        @49
+    CB_GetItemCmd        @50
+    CB_FindItem          @51
+    CB_EnableCmd         @52
+    CB_CheckCmd          @53
+    CB_GetItemCount      @54
+    CB_GetItemAt         @55
+;   ---- edit / combo / colour values ----
+    CB_SetItemValue      @56
+    CB_GetItemValue      @57
+    CB_AddComboItem      @58
+    CB_ClearComboItems   @59
+    CB_SetComboSel       @60
+    CB_GetComboSel       @61
+    CB_SetItemColor      @62
+    CB_GetItemColor      @63
+;   ---- keyboard ----
+    CB_AddAccelerator    @64
+    CB_ClearAccelerators @65
+    CB_TranslateKey      @66
+;   ---- events ----
+    CB_PollEvent         @67
+    CB_SetCallback       @68

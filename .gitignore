@@ -1,0 +1,9 @@
+*.obj
+*.exp
+*.pdb
+*.ilk
+*.res
+*.RSC
+obj/
+map/
+*.tmp
