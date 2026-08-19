@@ -316,6 +316,12 @@ typedef void (__stdcall *CB_EVENTPROC)(long userData, int item, long cmdId,
                                        int evType, long param);
 void  CBAPI CB_SetCallback(HCB cb, CB_EVENTPROC proc, long userData);
 
+/* ---- odds and ends ------------------------------------------------- */
+/* The mouse position in SCREEN coordinates - what CB_TrackMenu wants   */
+/* for a context menu.  Here so a caller does not have to bind to       */
+/* user32 itself just to pop a menu at the pointer.                     */
+void  CBAPI CB_GetCursorPos(int* x, int* y);
+
 #ifdef __cplusplus
 }
 #endif

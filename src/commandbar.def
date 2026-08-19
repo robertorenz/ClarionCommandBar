@@ -79,3 +79,5 @@ EXPORTS
 ;   ---- events ----
     CB_PollEvent         @67
     CB_SetCallback       @68
+;   ---- odds and ends ----
+    CB_GetCursorPos      @69

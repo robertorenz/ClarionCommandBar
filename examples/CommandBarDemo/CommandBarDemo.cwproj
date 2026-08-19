@@ -1,0 +1,13 @@
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{3F2C7A18-96D4-4E55-8B21-0C7A4E9D2B61}</ProjectGuid>
+    <Configuration>Release</Configuration><Platform>Win32</Platform>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>CommandBarDemo</AssemblyName><OutputName>CommandBarDemo</OutputName>
+    <Model>Local</Model><stack_size>32768</stack_size>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="CommandBarDemo.clw" />
+  </ItemGroup>
+  <Import Project="$(ClarionBinPath)\SoftVelocity.Build.Clarion.targets" />
+</Project>

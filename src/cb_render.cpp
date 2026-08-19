@@ -568,22 +568,70 @@ bool CBDecodeHandle(HANDLE h, bool isIcon, CBImage* out)
     return ok;
 }
 
-ID2D1Bitmap* CBGetBitmap(CBContainer* c, int image)
+/* Scale src down to size x size with WIC's Fant filter.  This matters:
+   toolbar art is usually 32px line drawings, and letting D2D bilinearly
+   halve them at draw time turns every one-pixel stroke into pale grey.
+   Fant is a proper windowed filter and holds the contrast. */
+static bool ScaleImage(const CBImage& src, int size, CBImage* out)
+{
+    if (!g_wic || !size || src.px.empty()) return false;
+    if ((int)src.w == size && (int)src.h == size) return false;  /* nothing to do */
+
+    IWICBitmap* mem = NULL;
+    if (FAILED(g_wic->CreateBitmapFromMemory(src.w, src.h,
+                                             GUID_WICPixelFormat32bppPBGRA,
+                                             src.w * 4, (UINT)src.px.size(),
+                                             (BYTE*)&src.px[0], &mem)) || !mem)
+        return false;
+
+    IWICBitmapScaler* sc = NULL;
+    bool ok = false;
+    if (SUCCEEDED(g_wic->CreateBitmapScaler(&sc)) && sc)
+    {
+        if (SUCCEEDED(sc->Initialize(mem, (UINT)size, (UINT)size,
+                                     WICBitmapInterpolationModeFant)))
+        {
+            out->w = (UINT)size;
+            out->h = (UINT)size;
+            out->px.resize((size_t)size * size * 4);
+            ok = SUCCEEDED(sc->CopyPixels(NULL, size * 4,
+                                          (UINT)out->px.size(), &out->px[0]));
+        }
+        sc->Release();
+    }
+    mem->Release();
+    return ok;
+}
+
+ID2D1Bitmap* CBGetBitmap(CBContainer* c, int image, int size)
 {
     CBManager* m = c->mgr;
     if (!c->rt || image < 1 || image >= (int)m->images.size()) return NULL;
+    if (size < 1) size = 16;
+
+    /* One container draws at one icon size, so the whole cache is keyed
+       on it: change the size and the cache is rebuilt. */
+    if (c->bmpSize != size)
+    {
+        CBDiscardBitmaps(c);
+        c->bmpSize = size;
+    }
     if ((int)c->bmp.size() <= image) c->bmp.resize(m->images.size(), NULL);
     if (c->bmp[image]) return c->bmp[image];
 
     CBImage& img = m->images[image];
     if (!img.w || !img.h || img.px.empty()) return NULL;
 
+    CBImage scaled;
+    const CBImage* use = &img;
+    if (ScaleImage(img, size, &scaled)) use = &scaled;
+
     D2D1_BITMAP_PROPERTIES bp = D2D1::BitmapProperties(
         D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED),
         96.0f, 96.0f);
     ID2D1Bitmap* b = NULL;
-    if (FAILED(c->rt->CreateBitmap(D2D1::SizeU(img.w, img.h), &img.px[0],
-                                   img.w * 4, bp, &b)))
+    if (FAILED(c->rt->CreateBitmap(D2D1::SizeU(use->w, use->h), &use->px[0],
+                                   use->w * 4, bp, &b)))
         return NULL;
     c->bmp[image] = b;
     return b;
@@ -594,6 +642,7 @@ void CBDiscardBitmaps(CBContainer* c)
     for (size_t i = 0; i < c->bmp.size(); ++i)
         if (c->bmp[i]) { c->bmp[i]->Release(); c->bmp[i] = NULL; }
     c->bmp.clear();
+    c->bmpSize = 0;
 }
 
 /*=====================================================================
@@ -736,7 +785,7 @@ static void DrawRadioDot(CBContainer* c, const RECT& box, COLORREF col)
 static void DrawImageAt(CBContainer* c, int image, int x, int y, int size,
                         bool enabled)
 {
-    ID2D1Bitmap* b = CBGetBitmap(c, image);
+    ID2D1Bitmap* b = CBGetBitmap(c, image, size);
     if (!b) return;
     D2D1_RECT_F dst = D2D1::RectF((float)x, (float)y,
                                   (float)(x + size), (float)(y + size));

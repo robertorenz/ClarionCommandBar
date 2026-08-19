@@ -149,6 +149,7 @@ struct CBContainer
     ID2D1HwndRenderTarget*    rt;
     ID2D1SolidColorBrush*     brush;  /* one reusable brush per target  */
     std::vector<ID2D1Bitmap*> bmp;    /* parallel to mgr->images        */
+    int                       bmpSize;/* the px size bmp[] was built for */
 
     /* ---- layout results ---- */
     int   measW, measH;    /* natural size in px                        */
@@ -174,7 +175,8 @@ struct CBContainer
     CBContainer()
         : id(0), isMenu(false), mgr(NULL), dock(CBD_TOP), dockRow(0),
           dockOffset(0), style(0), visible(true), floatX(100), floatY(100),
-          hwnd(NULL), rt(NULL), brush(NULL), measW(0), measH(0), rowCount(1),
+          hwnd(NULL), rt(NULL), brush(NULL), bmpSize(0),
+          measW(0), measH(0), rowCount(1),
           hasChevron(false), chevronMenu(0), hotItem(0), hotZone(CBHIT_NONE),
           pressItem(0), pressZone(CBHIT_NONE), openItem(0), tipItem(0),
           ownerItem(0), selIndex(-1), gutterW(0), shortcutW(0)
@@ -346,7 +348,9 @@ bool           CBDecodeFile(const wchar_t* file, CBImage* out);
 bool           CBDecodeStrip(const wchar_t* file, int cx,
                              std::vector<CBImage>* out);
 bool           CBDecodeHandle(HANDLE h, bool isIcon, CBImage* out);
-ID2D1Bitmap*   CBGetBitmap(CBContainer* c, int image);
+/* size is the px box the image will be drawn in: the bitmap is
+   pre-scaled to it with WIC so D2D never has to resample. */
+ID2D1Bitmap*   CBGetBitmap(CBContainer* c, int image, int size);
 void           CBDiscardBitmaps(CBContainer* c);
 
 /* Metrics, already scaled for DPI. */

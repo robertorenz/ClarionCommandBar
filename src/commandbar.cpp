@@ -46,6 +46,13 @@ void CBQueue(CBManager* m, int item, long cmd, int type, long param)
         if (it && it->container == m->suppressContainer) return;
     }
 
+    /* Building a bar re-lays out after every single AddItem, so a host
+       that just wants "the client area moved" would otherwise get a
+       burst of identical events.  One pending is enough. */
+    if (type == CBE_LAYOUT && !m->events.empty() &&
+        m->events.back().type == CBE_LAYOUT)
+        return;
+
     CBEvent e;
     e.item  = item;
     e.cmd   = cmd;
@@ -191,7 +198,9 @@ static void LayoutBarVertical(CBManager* m, CBContainer* c, int availH)
     for (size_t i = 0; i < c->items.size(); ++i)
     {
         CBItem* it = CBFindItem(m, c->items[i]);
-        if (!it) continue;
+        /* hs is indexed by position, so it must stay in step with
+           c->items even for an id that no longer resolves. */
+        if (!it) { hs.push_back(0); continue; }
         it->overflow = false;
         SetRectEmpty(&it->rc);
         SetRectEmpty(&it->arrow);
@@ -658,9 +667,15 @@ void CBRelayout(CBManager* m)
 
                     CBLayoutBar(m, bars[b], w, stripSize);
                     int y = (dock == CBD_TOP) ? top : (bottom - stripSize);
-                    dwp = DeferWindowPos(dwp, bars[b]->hwnd, NULL, x, y, w,
+                    /* HWND_TOP, not SWP_NOZORDER: a Clarion window puts a
+                       full-size 'ClaChildClient' over its whole client
+                       area, and our bars are its SIBLINGS.  Left where
+                       they were created they sit underneath it and never
+                       show.  Re-asserted on every layout because the host
+                       may reshuffle z-order on a resize. */
+                    dwp = DeferWindowPos(dwp, bars[b]->hwnd, HWND_TOP, x, y, w,
                                          stripSize,
-                                         SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                                         SWP_NOACTIVATE | SWP_SHOWWINDOW);
                     x += w;
                 }
                 if (dock == CBD_TOP) top += stripSize;
@@ -679,9 +694,9 @@ void CBRelayout(CBManager* m)
 
                     CBLayoutBar(m, bars[b], stripSize, h);
                     int x = (dock == CBD_LEFT) ? left : (right - stripSize);
-                    dwp = DeferWindowPos(dwp, bars[b]->hwnd, NULL, x, y,
+                    dwp = DeferWindowPos(dwp, bars[b]->hwnd, HWND_TOP, x, y,
                                          stripSize, h,
-                                         SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                                         SWP_NOACTIVATE | SWP_SHOWWINDOW);
                     y += h;
                 }
                 if (dock == CBD_LEFT) left += stripSize;
@@ -870,6 +885,12 @@ HCB CBAPI CB_Create(HWND hwndParent, unsigned long style)
     CBApplyTheme(m, CBT_STEELBLUE);
 
     m->images.push_back(CBImage());     /* index 0 is never used */
+
+    /* Without WS_CLIPCHILDREN the host erases its background straight
+       over our child windows and the bars flicker or vanish. */
+    LONG_PTR ps = GetWindowLongPtrW(hwndParent, GWL_STYLE);
+    if (!(ps & WS_CLIPCHILDREN))
+        SetWindowLongPtrW(hwndParent, GWL_STYLE, ps | WS_CLIPCHILDREN);
 
     SetPropW(hwndParent, CBPROP, (HANDLE)m);
     m->oldParentProc = (WNDPROC)SetWindowLongPtrW(hwndParent, GWLP_WNDPROC,
@@ -1634,4 +1655,17 @@ void CBAPI CB_SetCallback(HCB cb, CB_EVENTPROC proc, long userData)
     if (!m) return;
     m->proc     = proc;
     m->procUser = userData;
+}
+
+/*=====================================================================
+  Odds and ends
+  =====================================================================*/
+void CBAPI CB_GetCursorPos(int* x, int* y)
+{
+    POINT p;
+    p.x = 0;
+    p.y = 0;
+    GetCursorPos(&p);
+    if (x) *x = p.x;
+    if (y) *y = p.y;
 }
