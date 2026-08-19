@@ -19,8 +19,11 @@ copy /y ..\..\clarion\CommandBar.inc  . >nul || goto :missing
 copy /y ..\..\clarion\CommandBar.clw  . >nul || goto :missing
 copy /y ..\..\clarion\commandbar.lib  . >nul || goto :missing
 
-echo --- building MenuMirrorTest.exe ---
+echo --- building MenuMirrorTest.exe (a WINDOW) ---
 "%MSBUILD%" MenuMirrorTest.cwproj /p:ClarionBinPath=%CLARIONBIN% /v:minimal || goto :failed
+
+echo --- building FrameMirrorTest.exe (an MDI APPLICATION frame) ---
+"%MSBUILD%" FrameMirrorTest.cwproj /p:ClarionBinPath=%CLARIONBIN% /v:minimal || goto :failed
 
 rem  The DLL is staged AFTER the link on purpose: the Clarion build
 rem  copies any DLL it finds on the redirection path (accessory\bin)
@@ -30,7 +33,7 @@ echo --- staging commandbar.dll (after the link, so it wins) ---
 copy /y ..\..\bin\commandbar.dll      . >nul || goto :missing
 
 echo.
-echo Build OK - run MenuMirrorTest.exe from this folder.
+echo Build OK - run MenuMirrorTest.exe and FrameMirrorTest.exe from this folder.
 endlocal & exit /b 0
 
 :missing

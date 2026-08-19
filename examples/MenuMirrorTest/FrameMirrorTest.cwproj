@@ -1,0 +1,13 @@
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{D0D0D0D0-1111-2222-3333-444455556666}</ProjectGuid>
+    <Configuration>Release</Configuration><Platform>Win32</Platform>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>FrameMirrorTest</AssemblyName><OutputName>FrameMirrorTest</OutputName>
+    <Model>Local</Model><stack_size>32768</stack_size>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="FrameMirrorTest.clw" />
+  </ItemGroup>
+  <Import Project="$(ClarionBinPath)\SoftVelocity.Build.Clarion.targets" />
+</Project>

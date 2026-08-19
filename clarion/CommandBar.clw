@@ -849,6 +849,7 @@ Order   LONG
 pass SIGNED
 lo   SIGNED
 hi   SIGNED
+stp  SIGNED
 feq  SIGNED
 top  SIGNED
 sub  SIGNED
@@ -860,15 +861,39 @@ n    SIGNED
   FREE(MenuQ)
 
   !  ---- find every top-level MENU ----
-  LOOP pass = 1 TO 2
-    IF pass = 1                              ! controls that carry a USE
+  !
+  !  Menu controls land in FOUR different equate ranges, and which ones
+  !  depends on the kind of window and on whether the control carries a
+  !  USE.  Measured on Clarion 12:
+  !
+  !                        carries a USE      no USE
+  !    WINDOW              1, 2, 3 ...        32768, 32769 ... (upward)
+  !    APPLICATION frame   -1, -2, -3 ...     32767, 32766 ... (downward)
+  !
+  !  and an APPLICATION frame answers LASTFIELD() = 0, so the ordinary
+  !  field range is not even walkable there.  Scanning only the WINDOW
+  !  ranges is why mirroring an MDI frame produced an empty bar.
+  LOOP pass = 1 TO 4
+    CASE pass
+    OF 1                                     ! APPLICATION, named
+      lo = -1
+      hi = -2048
+      stp = -1
+    OF 2                                     ! WINDOW, named
       lo = 1
       hi = LASTFIELD()
-    ELSE                                     ! and those that do not
-      lo = 08000h
-      hi = 08000h + 1023
+      stp = 1
+    OF 3                                     ! APPLICATION, unnamed
+      lo = 32767
+      hi = 32767 - 1023
+      stp = -1
+    ELSE                                     ! WINDOW, unnamed
+      lo = 32768
+      hi = 32768 + 1023
+      stp = 1
     END
-    LOOP feq = lo TO hi
+    IF stp > 0 AND hi < lo THEN CYCLE.
+    LOOP feq = lo TO hi BY stp
       IF feq = menuBarFeq THEN CYCLE.
       IF feq{PROP:Type} <> CREATE:menu THEN CYCLE.
       IF feq{PROP:Parent} <> menuBarFeq THEN CYCLE.
@@ -880,13 +905,11 @@ n    SIGNED
   END
 
   !  ---- put them back in DECLARATION order ----
-  !  The equates alone cannot do it.  Clarion hands out LOW equates to
-  !  controls that carry a USE and SYNTHETIC ones (8000h up) to those
-  !  that do not, as two independent sequences - so a menubar holding
-  !  &File (no USE, 8000h) and &Edit (USE, 7) sorts backwards on feq.
-  !  The lowest equate anywhere in a menu's SUBTREE does work, because
-  !  the items inside the first menu are always declared before the
-  !  items inside the second whichever range they land in.
+  !  The equates alone cannot do it: named and unnamed controls are two
+  !  independent sequences, and on a frame they run backwards.  The
+  !  lowest RANK anywhere in a menu's subtree does work, because the
+  !  items inside the first menu are always declared before the items
+  !  inside the second whichever range they land in.
   SORT(MenuQ, MQ:Order)
 
   n = 0
@@ -909,6 +932,15 @@ n    SIGNED
   SETTARGET()
   RETURN n
 
+!  Where a field equate sits in declaration order, as a small positive
+!  number.  Each of the four ranges counts from its own end.
+CommandBarClass.MenuRank PROCEDURE(SIGNED feq)
+  CODE
+  IF feq < 0 THEN RETURN -feq.                 ! APPLICATION, named
+  IF feq >= 32768 THEN RETURN feq - 32767.     ! WINDOW, unnamed
+  IF feq > 16384 THEN RETURN 32768 - feq.      ! APPLICATION, unnamed
+  RETURN feq                                   ! WINDOW, named
+
 !  Lowest field equate in a menu's whole subtree, its own included.
 !  Assumes SETTARGET(SELF.Win) is active.
 CommandBarClass.MinFeqIn PROCEDURE(SIGNED menuFeq)
@@ -917,16 +949,26 @@ child SIGNED
 best  LONG
 sub   LONG
   CODE
-  best = menuFeq
+  !  Rank, not raw equate - and only NAMED controls count.  Every menu
+  !  worth mirroring holds items with a USE (an ITEM without one cannot
+  !  have ACCEPTED code anyway), so the first named item inside a menu
+  !  is a reliable stand-in for where that menu was declared.  Unnamed
+  !  controls are numbered in their own sequence and would interleave.
+  best = 0
+  IF ABS(menuFeq) <= 16384 THEN best = SELF.MenuRank(menuFeq).
   LOOP n = 1 TO 512
     child = menuFeq{PROP:Child, n}
     IF ~child THEN BREAK.
-    IF child < best THEN best = child.
+    IF ABS(child) <= 16384
+      sub = SELF.MenuRank(child)
+      IF sub > 0 AND (best = 0 OR sub < best) THEN best = sub.
+    END
     IF child{PROP:Type} = CREATE:menu
       sub = SELF.MinFeqIn(child)
-      IF sub < best THEN best = sub.
+      IF sub > 0 AND (best = 0 OR sub < best) THEN best = sub.
     END
   END
+  IF ~best THEN best = 1000000 + SELF.MenuRank(menuFeq).
   RETURN best
 
 !  The MENUBAR control itself, wherever it landed.
@@ -934,21 +976,34 @@ CommandBarClass.FindMenuBar PROCEDURE()
 pass SIGNED
 lo   SIGNED
 hi   SIGNED
+stp  SIGNED
 feq  SIGNED
 res  SIGNED
   CODE
   IF SELF.Win &= NULL THEN RETURN 0.
   res = 0
   SETTARGET(SELF.Win)
-  LOOP pass = 1 TO 2
-    IF pass = 1
+  LOOP pass = 1 TO 4
+    CASE pass
+    OF 1
+      lo = -1
+      hi = -2048
+      stp = -1
+    OF 2
       lo = 1
       hi = LASTFIELD()
+      stp = 1
+    OF 3
+      lo = 32767
+      hi = 32767 - 1023
+      stp = -1
     ELSE
-      lo = 08000h
-      hi = 08000h + 1023
+      lo = 32768
+      hi = 32768 + 1023
+      stp = 1
     END
-    LOOP feq = lo TO hi
+    IF stp > 0 AND hi < lo THEN CYCLE.
+    LOOP feq = lo TO hi BY stp
       IF feq{PROP:Type} = CREATE:menubar
         res = feq
         BREAK
@@ -966,6 +1021,7 @@ found SIGNED
 pass  SIGNED
 lo    SIGNED
 hi    SIGNED
+stp   SIGNED
 feq   SIGNED
 res   STRING(2000)
   CODE
@@ -984,17 +1040,30 @@ res   STRING(2000)
            'belongs to the application FRAME, mirror it on the FRAME, ' &        |
            'not here.'
   END
-  res = CLIP(res) & '<13,10>FIRSTFIELD=' & FIRSTFIELD() & ' LASTFIELD=' & LASTFIELD()
+  res = CLIP(res) & '  (' & CHOOSE(mb < 0, 'APPLICATION frame', 'WINDOW') &      |
+        ')<13,10>FIRSTFIELD=' & FIRSTFIELD() & ' LASTFIELD=' & LASTFIELD()
   found = 0
-  LOOP pass = 1 TO 2
-    IF pass = 1
+  LOOP pass = 1 TO 4
+    CASE pass
+    OF 1
+      lo = -1
+      hi = -2048
+      stp = -1
+    OF 2
       lo = 1
       hi = LASTFIELD()
+      stp = 1
+    OF 3
+      lo = 32767
+      hi = 32767 - 1023
+      stp = -1
     ELSE
-      lo = 08000h
-      hi = 08000h + 1023
+      lo = 32768
+      hi = 32768 + 1023
+      stp = 1
     END
-    LOOP feq = lo TO hi
+    IF stp > 0 AND hi < lo THEN CYCLE.
+    LOOP feq = lo TO hi BY stp
       IF feq = mb THEN CYCLE.
       IF feq{PROP:Type} <> CREATE:menu THEN CYCLE.
       IF feq{PROP:Parent} <> mb THEN CYCLE.
@@ -1010,6 +1079,9 @@ res   STRING(2000)
   RETURN CLIP(res) & '<13,10>' & found & ' top-level menus.'
 
 !  One level of a mirrored menu.  Assumes SETTARGET(SELF.Win) is active.
+!  PROP:Child hands back a MENU's immediate children in DECLARATION
+!  order - submenus and separators included - on a WINDOW and on an
+!  APPLICATION frame alike, so only the TOP level needs sorting.
 CommandBarClass.MirrorInto PROCEDURE(SIGNED container, SIGNED menuFeq)
 n     SIGNED
 child SIGNED
@@ -1089,7 +1161,6 @@ nm   STRING(12)
   IF BAND(cm, 4) THEN res = CLIP(res) & 'Alt+'.
   IF BAND(cm, 1) THEN res = CLIP(res) & 'Shift+'.
   RETURN CLIP(res) & CLIP(nm)
-
 
 CommandBarClass.SetHostMenu PROCEDURE(BYTE visible)
   CODE

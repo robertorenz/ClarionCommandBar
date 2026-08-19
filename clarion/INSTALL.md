@@ -3,13 +3,46 @@
 Everything you need is committed pre-built. You do **not** need Visual Studio
 unless you change `src\`.
 
+## Install it into Clarion — five copies
+
+Put everything where Clarion's own redirection already looks and you never have
+to think about paths again:
+
+| Copy this | To here |
+|---|---|
+| `clarion\ClaCommandBar.tpl` | `C:\clarion12\accessory\template\win` |
+| `clarion\CommandBar.inc` | `C:\clarion12\accessory\libsrc\win` |
+| `clarion\CommandBar.clw` | `C:\clarion12\accessory\libsrc\win` |
+| `clarion\commandbar.lib` | `C:\clarion12\accessory\lib` |
+| `bin\commandbar.dll` | `C:\clarion12\accessory\bin` |
+
+then register it once:
+
+```
+ClarionCL -tr C:\clarion12\accessory\template\win\ClaCommandBar.tpl
+```
+
+Those five folders are on the search paths in `clarion12\bin\CLARION120.RED`
+(`*.* = %ROOT%\Accessory\libsrc\win; … %ROOT%\Accessory\template\win`,
+`*.lib = %ROOT%\Accessory\lib`, `*.dll = %ROOT%\Accessory\bin`), so any app
+on the machine finds the class, links the lib, and gets `commandbar.dll`
+**copied into its output folder automatically**. Nothing to stage per project.
+
+> One thing to remember: if you ever rebuild the engine from `src\`, copy the
+> new `commandbar.dll` to `accessory\bin` as well. The import library binds by
+> ordinal, so an app built against a newer lib and loading the older DLL from
+> `accessory\bin` fails with `Entry Point Not Found`. See §7.
+
+The rest of this section explains what each piece is and what happens if you
+put it somewhere else.
+
 | File | Goes where | What it is |
 |---|---|---|
-| `bin\commandbar.dll` | **beside every EXE that uses it** | the engine (32-bit) |
-| `clarion\commandbar.lib` | anywhere the linker looks | the Clarion import library |
-| `clarion\CommandBar.inc` | on the redirection path | the class header |
-| `clarion\CommandBar.clw` | on the redirection path | the class body |
-| `clarion\ClaCommandBar.tpl` | anywhere permanent | the template chain |
+| `bin\commandbar.dll` | `accessory\bin`, or beside every EXE | the engine (32-bit) |
+| `clarion\commandbar.lib` | `accessory\lib`, or anywhere the linker looks | the Clarion import library |
+| `clarion\CommandBar.inc` | `accessory\libsrc\win` | the class header |
+| `clarion\CommandBar.clw` | `accessory\libsrc\win` | the class body |
+| `clarion\ClaCommandBar.tpl` | `accessory\template\win` | the template chain |
 
 ---
 
@@ -39,8 +72,9 @@ No VC++ redistributable, no .NET. Windows 7 SP1 through Windows 11.
 
 Copy `CommandBar.inc` and `CommandBar.clw` to either
 
-* the application's own folder, or
-* `clarion12\accessory\libsrc\win` (available to every app on the machine).
+* `clarion12\accessory\libsrc\win` — available to every app on the machine,
+  and what the install block at the top of this file does, or
+* the application's own folder, if you want one app pinned to its own copy.
 
 Both files are ANSI with **CRLF** line endings. Clarion's parser needs CRLF —
 a file saved with bare LF is read as one enormous line and fails with
@@ -56,16 +90,17 @@ Do **not** add `CommandBar.clw` to the project's file list. The class's own
 ClarionCL -tr C:\full\path\to\ClaCommandBar.tpl
 ```
 
-**Use a full path, and run it from any folder except the template's own.**
-This matters more than it looks:
+The registry records the template's **source file name**, and re-reads that
+file every time an app is opened. So the name has to stay resolvable:
 
-| What you type | What happens |
+| What you do | What happens |
 |---|---|
-| `ClarionCL -tr C:\path\ClaCommandBar.tpl` | correct |
-| `cd C:\path` then `ClarionCL -tr ClaCommandBar.tpl` | registers the **relative** path. Afterwards **every** app in the IDE fails to open with `Could not open include file ClaCommandBar.tpl`, and re-registering does not undo it — you have to restore `clarion12\template\win\TemplateRegistry12.trf` from a backup |
+| the `.tpl` is in `accessory\template\win` (the recommended install) | the bare name always resolves through redirection — safest |
+| the `.tpl` is elsewhere and you register it with a **full path** | fine, and what you want while developing the template itself |
+| the `.tpl` is elsewhere and you `cd` to it and register the **bare name** | the bare name is stored, nothing can resolve it later, and **every** app in the IDE then fails to open with `Could not open include file ClaCommandBar.tpl`. Re-registering does not undo it — restore `clarion12\template\win\TemplateRegistry12.trf` from a backup |
 
 Back the registry file up before you register anything, always. It is the only
-clean way out.
+clean way out of that last row.
 
 The chain is **one file on purpose**. It started as a `.tpl` plus a `.tpw` of
 shared `#GROUP`s, the way ClaPropGrid ships — but a template `#INCLUDE` is
@@ -327,14 +362,20 @@ A 24px slot for 32px art looks far better than a 16px one.
   the window finishes opening. The menu is kept, not destroyed, and put back on
   `CB_Destroy`; the field equates stay valid the whole time, which is what lets
   a mirrored row still POST to its `ITEM`.
-* **Menu controls do not all live in the same equate range.** One carrying a
-  `USE` gets an ordinary **low** equate — an AppGen frame answers
-  `0{PROP:MenuBar} = 1` — and one without a `USE` (an unnamed `MENU`, every
-  `ITEM,SEPARATOR`) gets a **synthetic** equate at `8000h` and up. A window
-  mixes both freely, and they are numbered as two independent sequences, so
-  **an equate is not a position**. `MirrorMenu` therefore scans both ranges,
-  filters on `PROP:Parent`, and sorts the top-level menus on the lowest equate
-  anywhere in each menu's subtree. See `examples\MenuMirrorTest`.
+* **Menu controls land in FOUR different equate ranges.** Which one depends on
+  the kind of window *and* on whether the control carries a `USE`:
+
+  | | carries a `USE` | no `USE` |
+  |---|---|---|
+  | `WINDOW` | `1, 2, 3 …` upward | `32768, 32769 …` upward |
+  | `APPLICATION` frame | `-1, -2, -3 …` **negative** | `32767, 32766 …` **downward** |
+
+  An `APPLICATION` frame also answers **`LASTFIELD() = 0`**, so the ordinary
+  field range is not walkable there at all. `MirrorMenu` scans all four ranges
+  and filters on `PROP:Parent`. **An equate is not a position** — the ranges
+  are independent sequences and on a frame they run backwards — so top-level
+  menus are sorted on the lowest *rank* of any named control in their subtree.
+  See `examples\MenuMirrorTest`.
 * A MENU answers `PROP:Child,n` with its immediate children **in declaration
   order**, submenus and separators included — but the MENUBAR itself does not,
   which is why the top level has to be found by scanning. A menu ITEM with
@@ -365,7 +406,7 @@ A 24px slot for 32px art looks far better than a 16px one.
 | The mirrored bar appears but the Clarion menu is still above it | *Mirror it onto a command bar* was chosen instead of *…take the original menu off the frame*. If you picked the latter and it still shows, the host window is not the one the manager was created on |
 | A bar will not drag | it has no *Drag gripper*, or it is `CBBS:Locked`. The gripper is the handle — the cursor turns into a move cursor over it |
 | A bar will not float, only re-dock | *User may float it* is off |
-| The mirrored bar is **empty** | `MirrorMenu` found no MENU whose `PROP:Parent` is the menubar. Call `CB.MenuReport()` and read what it says: if `PROP:MenuBar` is 0 the window has no menubar of its own (mirror on the **FRAME**, not on an MDI child, or pass the equate to `MirrorMenuFrom`) |
+| The mirrored bar is **empty** | `MirrorMenu` found no MENU whose `PROP:Parent` is the menubar. Call `CB.MenuReport()` and read what it says — it names the menubar equate, says whether it sees a `WINDOW` or an `APPLICATION` frame, and lists what it found. If `PROP:MenuBar` is 0 the window has no menubar of its own: mirror on the **FRAME**, not on an MDI child, or pass the equate to `MirrorMenuFrom` |
 | A mirrored row does nothing | its original `ITEM` has no `CASE ACCEPTED()` branch — mirroring only forwards the click, it does not invent behaviour |
 | A ribbon group is empty | the item's *Put it in* names the TAB, not the GROUP. Items go in a group |
 | A toggle button no longer stays down | its style was overwritten. `SetItemStyle` **replaces** the style word — include `CBIS:AutoCheck` when you set it by hand |

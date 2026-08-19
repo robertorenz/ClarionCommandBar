@@ -379,6 +379,11 @@ MirrorInto      PROCEDURE(SIGNED container, SIGNED menuFeq),PRIVATE
 !-- are sorted on it - see MirrorMenuFrom for why that is the only
 !-- reliable way to recover declaration order.
 MinFeqIn        PROCEDURE(SIGNED menuFeq),LONG,PRIVATE
+!-- A field equate turned into its position in declaration order.  A
+!-- WINDOW numbers menu controls upward from 1 and an APPLICATION frame
+!-- numbers them DOWNWARD from -1, so the raw equate cannot be compared
+!-- across the two - see MirrorMenuFrom.
+MenuRank        PROCEDURE(SIGNED feq),LONG,PRIVATE
               END
 
   _EndOfInclude_
