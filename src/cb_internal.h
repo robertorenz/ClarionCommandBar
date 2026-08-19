@@ -47,6 +47,9 @@
     the new window is picked up and pushed clear of the bars.  Posted,
     not sent: it arrives after the host has finished building it. */
 #define CBMSG_HOSTKIDS  (WM_APP + 0x5C)
+/*  Posted when the strip the host keeps for itself turns out to be a
+    different size, so the bars can be laid out again knowing it. */
+#define CBMSG_RELAYOUT  (WM_APP + 0x5D)
 
 #define CBTIMER_TIPSHOW  1      /* hover dwell before a tooltip appears */
 #define CBTIMER_TIPHIDE  2      /* auto-hide the tooltip again          */
@@ -312,6 +315,14 @@ struct CBManager
         that go stale the instant the window changes size - and the host
         moves its own children long before it tells us to lay out. */
     int            insL, insT, insR, insB;
+    /*  A strip along the bottom the HOST paints itself and no bar may
+        use.  A Clarion APPLICATION frame draws its status bar there -
+        there is no status window to find, the frame just stops its MDI
+        client short of the bottom - so it is measured from how far short
+        the client stops.  Without it a left, right or bottom bar runs
+        straight over the status bar. */
+    int            hostResB;
+    int            userResB;        /* set by hand; <0 means "measure it" */
     bool           inLayout;
     bool           destroying;
 
@@ -393,6 +404,8 @@ struct CBManager
         ZeroMemory(dragThick, sizeof(dragThick));
         SetRectEmpty(&clientRc);
         insL = insT = insR = insB = 0;
+        hostResB = 0;
+        userResB = -1;
         ZeroMemory(col, sizeof(col));
         ZeroMemory(metric, sizeof(metric));
     }

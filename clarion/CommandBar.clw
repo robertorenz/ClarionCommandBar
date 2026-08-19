@@ -110,6 +110,8 @@ CB_PollEvent         PROCEDURE(LONG cb, *SIGNED item, *LONG cmdId, *SIGNED evTyp
 CB_GetCursorPos      PROCEDURE(*SIGNED x, *SIGNED y),PASCAL,RAW,NAME('CB_GetCursorPos')
 CB_SetHostMenuVisible PROCEDURE(LONG cb, SIGNED visible),PASCAL,NAME('CB_SetHostMenuVisible')
 CB_SetReserveSpace   PROCEDURE(LONG cb, SIGNED mode),PASCAL,NAME('CB_SetReserveSpace')
+CB_SetHostReserveBottom PROCEDURE(LONG cb, SIGNED px),PASCAL,NAME('CB_SetHostReserveBottom')
+CB_GetHostReserveBottom PROCEDURE(LONG cb),SIGNED,PASCAL,NAME('CB_GetHostReserveBottom')
 CB_GetReserveSpace   PROCEDURE(LONG cb),SIGNED,PASCAL,NAME('CB_GetReserveSpace')
 CB_GetHostMenuVisible PROCEDURE(LONG cb),SIGNED,PASCAL,NAME('CB_GetHostMenuVisible')
     END
@@ -1211,6 +1213,17 @@ i SIGNED
   !  The host menu is already off the frame if it was ever taken off,
   !  and the DLL keeps re-asserting that, so do not ask again here.
   RETURN SELF.MirrorMenu(SELF.MirrorBar, 0)
+
+
+CommandBarClass.HostReserveBottom PROCEDURE(SIGNED px)
+  CODE
+  IF SELF.CB THEN CB_SetHostReserveBottom(SELF.CB, px).
+
+
+CommandBarClass.HostReserveHeight PROCEDURE()
+  CODE
+  IF ~SELF.CB THEN RETURN 0.
+  RETURN CB_GetHostReserveBottom(SELF.CB)
 
 !---------------------------------------------------------------------
 ! the event pump

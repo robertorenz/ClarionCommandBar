@@ -329,6 +329,15 @@ SetHostMenu     PROCEDURE(BYTE visible)
 !-- plain window to FitControl.
 ReserveSpace    PROCEDURE(SIGNED mode)
 ReserveMode     PROCEDURE(),SIGNED
+!-- A strip along the bottom the HOST paints itself, that no bar may use.
+!-- On an APPLICATION frame it is measured automatically - the frame stops
+!-- its MDI client short of the bottom and that gap IS the status bar - so
+!-- nothing needs setting.  A plain WINDOW with a STATUS bar has no such
+!-- child to measure, so give it the height in PIXELS and a bottom, left
+!-- or right bar will stop above the status bar instead of covering it.
+!-- Pass -1 to go back to measuring.
+HostReserveBottom PROCEDURE(SIGNED px),PROC,VIRTUAL
+HostReserveHeight PROCEDURE(),SIGNED,VIRTUAL
 HostMenuVisible PROCEDURE(),BYTE
 AddSubMenu      PROCEDURE(SIGNED container, STRING text, SIGNED menu, SIGNED image=0),SIGNED,PROC
 AddSpace        PROCEDURE(SIGNED container, SIGNED widthPx=0),SIGNED,PROC

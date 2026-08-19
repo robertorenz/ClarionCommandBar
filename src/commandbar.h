@@ -379,6 +379,16 @@ int   CBAPI CB_GetHostMenuVisible(HCB cb);
 void  CBAPI CB_SetReserveSpace(HCB cb, int mode);
 int   CBAPI CB_GetReserveSpace(HCB cb);
 
+/* A strip along the bottom that the HOST paints itself and no bar may   */
+/* use.  On an APPLICATION frame this is measured on its own - the frame */
+/* stops its MDI client short of the bottom and that gap is the status   */
+/* bar - so nothing needs setting.  A plain WINDOW with a STATUS bar has */
+/* no such child to measure, so say how many PIXELS to keep clear and a  */
+/* bottom, left or right bar will stop above it.                        */
+/*   px  0 or more = keep that many pixels,  -1 = measure it (default)   */
+void  CBAPI CB_SetHostReserveBottom(HCB cb, int px);
+int   CBAPI CB_GetHostReserveBottom(HCB cb);
+
 #ifdef __cplusplus
 }
 #endif

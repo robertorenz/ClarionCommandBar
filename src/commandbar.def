@@ -94,3 +94,6 @@ EXPORTS
 ;   ---- v1.2: reserving space from the host ----
     CB_SetReserveSpace   @79
     CB_GetReserveSpace   @80
+;   ---- v1.3: the strip the host paints itself ----
+    CB_SetHostReserveBottom @81
+    CB_GetHostReserveBottom @82

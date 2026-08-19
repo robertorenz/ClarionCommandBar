@@ -368,6 +368,23 @@ the rest:
   or removed by your own code). It will not conjure up a child's merged menu,
   for the reasons above.
 
+### 5b9. The host's status bar
+
+Bars stop above the strip the host paints its **status bar** in, rather than
+covering it — on the left, on the right and on the bottom.
+
+There is no status-bar window to find: a Clarion frame paints that strip
+itself. It is measured from the host's own intent instead — the frame stops its
+MDI client short of the bottom, and that gap *is* the status bar. Measured on a
+frame 1374x776, the client stops at 753, so 23px belong to the status bar.
+
+A plain **WINDOW** with a `STATUS` bar has no such child to measure from, so
+say how tall it is:
+
+```clarion
+CommandBar.HostReserveBottom(23)     ! pixels; -1 goes back to measuring
+```
+
 ### 5c. Putting your own controls under the bars
 
 The bars take space off the top / bottom / sides of the window. Whatever is
@@ -488,6 +505,8 @@ A 24px slot for 32px art looks far better than a 16px one.
 | Mirrored rows appear but **clicking does nothing** on a FRAME | fixed in v1.2. A frame numbers its menu controls NEGATIVE, so a mirrored command id lands just *below* `MirrorBase`, and the old test only matched ids above it |
 | The frame's menu gained items and the mirrored bar did not | an MDI child merged its menu in — that cannot be mirrored (see 5b8). Set `NOMERGE` on the child, or mirror with `HideOriginal` off |
 | The frame's TOOLBAR disappears when a procedure opens | check the frame's `TOOLBAR` for **`NOMERGE`** and clear it — that attribute drops the toolbar out of the merge, so opening any MDI child takes it away. It is not caused by the bars |
+| A docked bar covers the frame's status bar | fixed - bars stop above it. The strip is measured from how far short the host stops its MDI client. On a plain **WINDOW** with a `STATUS` bar there is no such child to measure, so tell it: `CommandBar.HostReserveBottom(23)` |
+| A bar seems to appear twice after being dragged | old pixels the host never repainted, now erased when a bar moves. If it still happens, say where it was dragged from and to |
 | The frame's toolbar flickers when an MDI child opens or closes | some of that is Clarion's own: merging swaps the frame's toolbar for a merged one and unmerging swaps it back, so that strip is painted twice either way, with or without a command bar. What is ours is not: the bars are only repainted by a layout that actually moved something |
 | A frame child (toolbar, MDI client) sits in the wrong place | set `CB_HOSTLOG=1` in the environment and run again — every host-child move is traced to `%TEMP%\cbhost.log` |
 | A mirrored row does nothing | its original `ITEM` has no `CASE ACCEPTED()` branch — mirroring only forwards the click, it does not invent behaviour |

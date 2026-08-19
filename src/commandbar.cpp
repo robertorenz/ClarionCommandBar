@@ -629,9 +629,11 @@ static void CollectSide(CBManager* m, int dock, std::vector<DockRowInfo>* out)
     }
 }
 
-/*  Is this bar already exactly where the layout wants it?  Used to tell
-    a layout that changed something from one that just re-ran. */
-static bool CBBarWouldMove(CBManager* m, HWND h, int x, int y, int w, int t)
+/*  Is this bar already exactly where the layout wants it?  Tells a layout
+    that changed something from one that just re-ran, and hands back the
+    rect being vacated so the host can be told to erase it. */
+static bool CBBarWouldMove(CBManager* m, HWND h, int x, int y, int w, int t,
+                           RECT* was)
 {
     RECT r;
     if (!GetWindowRect(h, &r)) return true;
@@ -639,8 +641,29 @@ static bool CBBarWouldMove(CBManager* m, HWND h, int x, int y, int w, int t)
     tl.x = r.left;
     tl.y = r.top;
     ScreenToClient(m->parent, &tl);
+
+    if (was)
+    {
+        was->left   = tl.x;
+        was->top    = tl.y;
+        was->right  = tl.x + (r.right - r.left);
+        was->bottom = tl.y + (r.bottom - r.top);
+    }
     return tl.x != x || tl.y != y ||
            (r.right - r.left) != w || (r.bottom - r.top) != t;
+}
+
+/*  Remember where a bar used to be.  Moving a bar leaves its old pixels
+    on the host - the host has no reason to repaint a strip it never drew
+    in - and a bar that lands in a new dock row next to the old one then
+    reads as a DUPLICATE of itself sitting alongside. */
+static void CBAddVacated(RECT* dirty, bool* any, const RECT* was)
+{
+    if (!*any) { *dirty = *was; *any = true; return; }
+    if (was->left   < dirty->left)   dirty->left   = was->left;
+    if (was->top    < dirty->top)    dirty->top    = was->top;
+    if (was->right  > dirty->right)  dirty->right  = was->right;
+    if (was->bottom > dirty->bottom) dirty->bottom = was->bottom;
 }
 
 void CBRelayout(CBManager* m)
@@ -650,9 +673,20 @@ void CBRelayout(CBManager* m)
 
     RECT pc;
     GetClientRect(m->parent, &pc);
-    int left = 0, top = 0, right = pc.right, bottom = pc.bottom;
+
+    /*  The host keeps a strip along the bottom for its status bar and
+        paints it itself - there is no window there to find.  Bars must
+        stop above it, or a left, right or bottom bar covers it. */
+    const int hostB = (m->userResB >= 0) ? m->userResB : m->hostResB;
+
+    int left = 0, top = 0, right = pc.right;
+    int bottom = pc.bottom - hostB;
+    if (bottom <= top) bottom = pc.bottom;
 
     bool moved = false;         /* did any bar window really move or resize? */
+    RECT vacated;               /* where bars used to be, to be erased     */
+    bool anyVacated = false;
+    SetRectEmpty(&vacated);
 
     HDWP dwp = BeginDeferWindowPos(8);
 
@@ -707,8 +741,12 @@ void CBRelayout(CBManager* m)
                        they were created they sit underneath it and never
                        show.  Re-asserted on every layout because the host
                        may reshuffle z-order on a resize. */
-                    if (CBBarWouldMove(m, bars[b]->hwnd, x, y, w, stripSize))
+                    RECT was;
+                    if (CBBarWouldMove(m, bars[b]->hwnd, x, y, w, stripSize, &was))
+                    {
                         moved = true;
+                        CBAddVacated(&vacated, &anyVacated, &was);
+                    }
                     dwp = DeferWindowPos(dwp, bars[b]->hwnd, HWND_TOP, x, y, w,
                                          stripSize,
                                          SWP_NOACTIVATE | SWP_SHOWWINDOW);
@@ -730,8 +768,12 @@ void CBRelayout(CBManager* m)
 
                     CBLayoutBar(m, bars[b], stripSize, h);
                     int x = (dock == CBD_LEFT) ? left : (right - stripSize);
-                    if (CBBarWouldMove(m, bars[b]->hwnd, x, y, stripSize, h))
+                    RECT was;
+                    if (CBBarWouldMove(m, bars[b]->hwnd, x, y, stripSize, h, &was))
+                    {
                         moved = true;
+                        CBAddVacated(&vacated, &anyVacated, &was);
+                    }
                     dwp = DeferWindowPos(dwp, bars[b]->hwnd, HWND_TOP, x, y,
                                          stripSize, h,
                                          SWP_NOACTIVATE | SWP_SHOWWINDOW);
@@ -758,7 +800,12 @@ void CBRelayout(CBManager* m)
         CBEnsureBarWindow(m, c);
         CBLayoutBar(m, c, 10000, 0);
         int w = c->measW, h = c->measH;
-        if (CBBarWouldMove(m, c->hwnd, c->floatX, c->floatY, w, h)) moved = true;
+        RECT wasF;
+        if (CBBarWouldMove(m, c->hwnd, c->floatX, c->floatY, w, h, &wasF))
+        {
+            moved = true;
+            CBAddVacated(&vacated, &anyVacated, &wasF);
+        }
         SetWindowPos(c->hwnd, HWND_TOP, c->floatX, c->floatY, w, h,
                      SWP_NOACTIVATE | SWP_SHOWWINDOW);
     }
@@ -783,8 +830,12 @@ void CBRelayout(CBManager* m)
         if (fh < 1) fh = 1;
         CBLayoutBar(m, c, fw, fh);
         if (c->measH > fh) fh = c->measH;      /* never clip a ribbon */
-        if (CBBarWouldMove(m, c->hwnd, c->fixedRc.left, c->fixedRc.top, fw, fh))
+        RECT wasX;
+        if (CBBarWouldMove(m, c->hwnd, c->fixedRc.left, c->fixedRc.top, fw, fh, &wasX))
+        {
             moved = true;
+            CBAddVacated(&vacated, &anyVacated, &wasX);
+        }
         SetWindowPos(c->hwnd, HWND_TOP, c->fixedRc.left, c->fixedRc.top,
                      fw, fh, SWP_NOACTIVATE | SWP_SHOWWINDOW);
     }
@@ -804,8 +855,11 @@ void CBRelayout(CBManager* m)
     m->clientRc = nc;
     m->insL = nc.left;
     m->insT = nc.top;
-    m->insR = pc.right  - nc.right;
-    m->insB = pc.bottom - nc.bottom;
+    m->insR = pc.right - nc.right;
+    /*  Only what the BARS took, not the host's own strip - the transform
+        that moves the host's children adds that back on its own. */
+    m->insB = (pc.bottom - hostB) - nc.bottom;
+    if (m->insB < 0) m->insB = 0;
 
     /* The host lays its own children out against the FULL client area
        and never reads clientRc, so on a frame they have to be pushed
@@ -824,6 +878,15 @@ void CBRelayout(CBManager* m)
         for (i = m->containers.begin(); i != m->containers.end(); ++i)
             if (i->second->kind == CBK_BAR && i->second->hwnd)
                 InvalidateRect(i->second->hwnd, NULL, FALSE);
+
+    /*  Erase whatever the bars uncovered.  WS_CLIPCHILDREN is on the host,
+        so this repaints only the parts no bar is sitting on - the strip a
+        bar just left, and nothing underneath the bars themselves. */
+    if (anyVacated)
+    {
+        InvalidateRect(m->parent, &vacated, TRUE);
+        UpdateWindow(m->parent);
+    }
 
     m->inLayout = false;
     if (changed) CBQueue(m, 0, 0, CBE_LAYOUT, 0);
@@ -903,6 +966,10 @@ static LRESULT CALLBACK CBParentProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     }
     case CBMSG_HOSTKIDS:
         CBReserveFromHost(m);
+        return 0;
+
+    case CBMSG_RELAYOUT:
+        CBRelayout(m);
         return 0;
 
     case CBMSG_APPLYDRAG:
@@ -2436,6 +2503,42 @@ static void CBApplyHostLayout(CBManager* m)
     }
 }
 
+/*  How much of the bottom does the host keep for itself?
+
+    There is nothing to enumerate - a Clarion frame paints its status bar
+    rather than putting a window there - so it is read off the host's own
+    intent instead: the MDI client is a FILLER, and wherever it stops
+    short of the bottom is the strip the host has kept.  Measured on a
+    frame 1374x776: the client's canonical rect ends at 753, so 23px
+    belong to the status bar and no bar may use them.
+
+    Only a filler counts.  A band like the toolbar stops short of the
+    bottom by most of the window, which means nothing at all. */
+static int CBMeasureHostReserveB(CBManager* m)
+{
+    RECT pc;
+    GetClientRect(m->parent, &pc);
+    if (pc.bottom < 8) return 0;
+
+    int keep = 0;
+    for (size_t i = 0; i < m->hostKids.size(); ++i)
+    {
+        const CBHostKid& k = m->hostKids[i];
+        if (!IsWindow(k.hwnd) || !IsWindowVisible(k.hwnd)) continue;
+
+        const int ch = k.canon.bottom - k.canon.top;
+        if (ch * 10 <= pc.bottom * 6) continue;        /* a band, not a filler */
+
+        int gap = pc.bottom - k.canon.bottom;
+        if (gap < 0) gap = 0;
+        /* A whole band's worth is somebody else's window, not a painted
+           strip - leave that to the ordinary layout. */
+        if (gap > pc.bottom / 4) continue;
+        if (gap > keep) keep = gap;
+    }
+    return keep;
+}
+
 void CBReserveFromHost(CBManager* m)
 {
     if (!m || m->destroying || !IsWindow(m->parent)) return;
@@ -2466,6 +2569,15 @@ void CBReserveFromHost(CBManager* m)
         m->hostKids.push_back(nk);
         CBHostLog("HOOK     %-12s canon=%d,%d,%d,%d\r\n", CBClsOf(h),
                   nk.canon.left, nk.canon.top, nk.canon.right, nk.canon.bottom);
+    }
+
+    const int keep = CBMeasureHostReserveB(m);
+    if (keep != m->hostResB)
+    {
+        m->hostResB = keep;
+        /*  Lay out again knowing it - posted, because this runs from
+            inside the layout that would have to be redone. */
+        PostMessageW(m->parent, CBMSG_RELAYOUT, 0, 0);
     }
 
     CBApplyHostLayout(m);
@@ -2523,6 +2635,21 @@ int CBAPI CB_GetReserveSpace(HCB cb)
 {
     CBManager* m = (CBManager*)cb;
     return m ? m->reserve : 0;
+}
+
+void CBAPI CB_SetHostReserveBottom(HCB cb, int px)
+{
+    CBManager* m = (CBManager*)cb;
+    if (!m) return;
+    m->userResB = (px < 0) ? -1 : px;
+    CBRelayout(m);
+}
+
+int CBAPI CB_GetHostReserveBottom(HCB cb)
+{
+    CBManager* m = (CBManager*)cb;
+    if (!m) return 0;
+    return (m->userResB >= 0) ? m->userResB : m->hostResB;
 }
 
 /*=====================================================================
