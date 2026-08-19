@@ -109,6 +109,8 @@ CB_TranslateKey      PROCEDURE(LONG cb, SIGNED key, SIGNED mods),SIGNED,PROC,PAS
 CB_PollEvent         PROCEDURE(LONG cb, *SIGNED item, *LONG cmdId, *SIGNED evType, *LONG param),SIGNED,PROC,PASCAL,RAW,NAME('CB_PollEvent')
 CB_GetCursorPos      PROCEDURE(*SIGNED x, *SIGNED y),PASCAL,RAW,NAME('CB_GetCursorPos')
 CB_SetHostMenuVisible PROCEDURE(LONG cb, SIGNED visible),PASCAL,NAME('CB_SetHostMenuVisible')
+CB_SetReserveSpace   PROCEDURE(LONG cb, SIGNED mode),PASCAL,NAME('CB_SetReserveSpace')
+CB_GetReserveSpace   PROCEDURE(LONG cb),SIGNED,PASCAL,NAME('CB_GetReserveSpace')
 CB_GetHostMenuVisible PROCEDURE(LONG cb),SIGNED,PASCAL,NAME('CB_GetHostMenuVisible')
     END
   END
@@ -128,6 +130,9 @@ CommandBarClass.Construct PROCEDURE()
   SELF.TimerInterval = 10
   SELF.MenuBar       = 0
   SELF.MirrorBase    = 1000000
+  SELF.MirrorBar     = 0
+  SELF.MirrorHide    = 0
+  SELF.MirrorMenus  &= NEW(CBMirrorQueue)
   SELF.LastItem      = 0
   SELF.LastCmd       = 0
   SELF.LastEvent     = 0
@@ -857,6 +862,8 @@ i    SIGNED
 n    SIGNED
   CODE
   IF ~SELF.CB OR SELF.Win &= NULL OR ~menuBarFeq THEN RETURN 0.
+  SELF.MirrorBar  = bar
+  SELF.MirrorHide = hideOriginal
   SETTARGET(SELF.Win)
   FREE(MenuQ)
 
@@ -1162,6 +1169,15 @@ nm   STRING(12)
   IF BAND(cm, 1) THEN res = CLIP(res) & 'Shift+'.
   RETURN CLIP(res) & CLIP(nm)
 
+CommandBarClass.ReserveSpace PROCEDURE(SIGNED mode)
+  CODE
+  IF SELF.CB THEN CB_SetReserveSpace(SELF.CB, mode).
+
+CommandBarClass.ReserveMode PROCEDURE()
+  CODE
+  IF ~SELF.CB THEN RETURN 0.
+  RETURN CB_GetReserveSpace(SELF.CB)
+
 CommandBarClass.SetHostMenu PROCEDURE(BYTE visible)
   CODE
   IF SELF.CB THEN CB_SetHostMenuVisible(SELF.CB, visible).
@@ -1170,6 +1186,31 @@ CommandBarClass.HostMenuVisible PROCEDURE()
   CODE
   IF ~SELF.CB THEN RETURN 0.
   RETURN CB_GetHostMenuVisible(SELF.CB)
+
+
+!  Re-read the MENUBAR onto the same bar.  In an MDI application the
+!  frame's menu is not fixed: opening a child window MERGES that child's
+!  own MENUBAR into it, and closing the child takes it away again.  A
+!  mirror taken once at Init would go stale the first time a browse
+!  opened, so call this whenever the menu may have changed.
+CommandBarClass.RefreshMirror PROCEDURE()
+i SIGNED
+  CODE
+  IF ~SELF.CB OR ~SELF.MirrorBar THEN RETURN 0.
+
+  !  throw away the popups the last mirror made, then the titles
+  IF ~SELF.MirrorMenus &= NULL
+    LOOP i = 1 TO RECORDS(SELF.MirrorMenus)
+      GET(SELF.MirrorMenus, i)
+      SELF.DestroyContainer(SELF.MirrorMenus.Container)
+    END
+    FREE(SELF.MirrorMenus)
+  END
+  SELF.ClearContainer(SELF.MirrorBar)
+
+  !  The host menu is already off the frame if it was ever taken off,
+  !  and the DLL keeps re-asserting that, so do not ask again here.
+  RETURN SELF.MirrorMenu(SELF.MirrorBar, 0)
 
 !---------------------------------------------------------------------
 ! the event pump
@@ -1194,7 +1235,12 @@ guard SIGNED
     !  A row MirrorMenu built stands in for a real menu ITEM: hand the
     !  click straight to that ITEM and keep the event to ourselves, so
     !  the caller only ever sees its OWN commands.
-    IF SELF.MirrorBase > 0 AND evt = CBE:Command AND cmd >= SELF.MirrorBase
+    !  An APPLICATION frame hands out NEGATIVE equates for its menu
+    !  controls, so a mirrored id sits just BELOW MirrorBase as often as
+    !  above it - testing "cmd >= MirrorBase" silently dropped every
+    !  mirrored click on a frame.  A window either side is what works.
+    IF SELF.MirrorBase > 0 AND evt = CBE:Command AND                            |
+       cmd > SELF.MirrorBase - 65536 AND cmd < SELF.MirrorBase + 65536
       POST(EVENT:Accepted, cmd - SELF.MirrorBase)
       CYCLE
     END

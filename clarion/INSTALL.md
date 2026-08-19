@@ -291,6 +291,44 @@ Double-clicking a floating bar's caption sends it back to the top, and the
 little **x** on the caption hides it (`CB.SetBarVisible(bar, 1)` brings it
 back).
 
+### 5b7. On an application FRAME the bars reserve their own space
+
+A plain `WINDOW` positions its own controls, so you point *Control to fill the
+space the bars leave* at a LIST and the template re-fits it. A **frame** does
+not work like that: Clarion lays out its `ClaToolBar` and `MDIClient` itself,
+against the **full** client area, and never reads `CB_GetClientRect`. Left
+alone, a docked bar is simply drawn on top of the frame's toolbar.
+
+So on a frame the manager takes over: it subclasses the host's own children and
+corrects their layout in flight — a top band like a toolbar is pushed down
+keeping its height, and a filler like the MDI client is pushed down and
+shortened, keeping whatever inset the frame left for its status bar. Nothing to
+configure; it turns itself on when it sees an `MDIClient` or a `ClaToolBar`.
+
+`CommandBar.ReserveSpace(0)` turns it off, `(1)` forces it on, `(-1)` is the
+auto default.
+
+Two Win32 details make this less obvious than it sounds, and both are in the
+comments in `commandbar.cpp`: Clarion derives the MDI client's top from the
+toolbar's **height** rather than its position, so simply moving the windows
+starts a fight it wins; and the MDI code inside `DefFrameProc` sizes the client
+with `SWP_NOSENDCHANGING`, so `WM_WINDOWPOSCHANGING` alone is not enough and
+`WM_WINDOWPOSCHANGED` has to be checked too.
+
+### 5b8. MDI menu merging — `RefreshMirror`
+
+A frame's menu is **not fixed**. Opening an MDI child merges that child's own
+`MENUBAR` into the frame's, and closing it takes those items away again. A
+mirror taken once at `Init` goes stale the moment a browse opens.
+
+Two ways to deal with it:
+
+* **`CommandBar.RefreshMirror()`** — throws the mirrored menu away and reads the
+  `MENUBAR` again onto the same bar. Call it after a child window opens or
+  closes. It returns the new top-level count.
+* **`PROP:NoMerge`** on the child window — stops Clarion merging at all, so the
+  frame's menu never changes and one mirror lasts the life of the app.
+
 ### 5c. Putting your own controls under the bars
 
 The bars take space off the top / bottom / sides of the window. Whatever is
@@ -407,6 +445,9 @@ A 24px slot for 32px art looks far better than a 16px one.
 | A bar will not drag | it has no *Drag gripper*, or it is `CBBS:Locked`. The gripper is the handle — the cursor turns into a move cursor over it |
 | A bar will not float, only re-dock | *User may float it* is off |
 | The mirrored bar is **empty** | `MirrorMenu` found no MENU whose `PROP:Parent` is the menubar. Call `CB.MenuReport()` and read what it says — it names the menubar equate, says whether it sees a `WINDOW` or an `APPLICATION` frame, and lists what it found. If `PROP:MenuBar` is 0 the window has no menubar of its own: mirror on the **FRAME**, not on an MDI child, or pass the equate to `MirrorMenuFrom` |
+| A docked bar is drawn **on top of** the frame's toolbar | space reservation is off, or the host is not recognised as owning its layout. Call `CommandBar.ReserveSpace(1)` to force it |
+| Mirrored rows appear but **clicking does nothing** on a FRAME | fixed in v1.2. A frame numbers its menu controls NEGATIVE, so a mirrored command id lands just *below* `MirrorBase`, and the old test only matched ids above it |
+| The frame's menu gained items and the mirrored bar did not | an MDI child merged its menu in. Call `RefreshMirror()`, or set `PROP:NoMerge` on the child |
 | A mirrored row does nothing | its original `ITEM` has no `CASE ACCEPTED()` branch — mirroring only forwards the click, it does not invent behaviour |
 | A ribbon group is empty | the item's *Put it in* names the TAB, not the GROUP. Items go in a group |
 | A toggle button no longer stays down | its style was overwritten. `SetItemStyle` **replaces** the style word — include `CBIS:AutoCheck` when you set it by hand |

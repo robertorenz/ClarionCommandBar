@@ -91,3 +91,6 @@ EXPORTS
     CB_GetTabAt          @76
     CB_SetHostMenuVisible @77
     CB_GetHostMenuVisible @78
+;   ---- v1.2: reserving space from the host ----
+    CB_SetReserveSpace   @79
+    CB_GetReserveSpace   @80

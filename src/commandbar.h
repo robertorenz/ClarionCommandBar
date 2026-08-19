@@ -361,6 +361,24 @@ void  CBAPI CB_GetCursorPos(int* x, int* y);
 void  CBAPI CB_SetHostMenuVisible(HCB cb, int visible);
 int   CBAPI CB_GetHostMenuVisible(HCB cb);
 
+/* ---- reserving space from the host --------------------------------- */
+/* CB_GetClientRect reports what the bars left over, but the HOST does  */
+/* not read it.  A Clarion APPLICATION frame lays its own ClaToolBar    */
+/* and MDIClient out against the FULL client area, so docked bars end   */
+/* up drawn on top of them.  With reserving on, the manager moves the   */
+/* host's own child windows out of the strips the bars took: a top band */
+/* like a toolbar is shifted down keeping its height, and a filler like */
+/* the MDI client is shifted and shortened, keeping whatever inset the  */
+/* host left for a status bar.                                          */
+/*                                                                      */
+/*   mode  1 = always,  0 = never,                                      */
+/*        -1 = AUTO (the default): on when the host has an MDIClient or */
+/*             a ClaToolBar of its own, off otherwise - a plain window  */
+/*             positions its own controls, so use CB_GetClientRect and  */
+/*             move them yourself there.                                */
+void  CBAPI CB_SetReserveSpace(HCB cb, int mode);
+int   CBAPI CB_GetReserveSpace(HCB cb);
+
 #ifdef __cplusplus
 }
 #endif

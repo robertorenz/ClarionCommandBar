@@ -179,6 +179,14 @@ CBK:Ctrl        EQUATE(0001h)
 CBK:Shift       EQUATE(0002h)
 CBK:Alt         EQUATE(0004h)
 
+!---- the containers one MirrorMenu built -----------------------------
+! Kept so RefreshMirror can throw the whole mirrored menu away and read
+! the MENUBAR again - which is what an MDI app needs, because opening a
+! child window MERGES that child's menu into the frame's.
+CBMirrorQueue QUEUE,TYPE
+Container       SIGNED
+              END
+
 CommandBarClass CLASS,TYPE,MODULE('CommandBar.clw'),LINK('CommandBar.clw',_CommandBarLinkMode_),DLL(_CommandBarDllMode_)
 CB              LONG                        ! HCB handle (0 = dead)
 Win             &WINDOW                     ! owning Clarion window
@@ -193,6 +201,11 @@ MenuBar         SIGNED                      ! bar id made by AddMenuBar, 0 = non
 !  makes mirroring transparent: all your existing menu embed code runs
 !  untouched.  Set it to 0 to see the raw command ids instead.
 MirrorBase      LONG
+!  The bar the last MirrorMenu built into, and the popup containers it
+!  made - RefreshMirror needs both.
+MirrorBar       SIGNED
+MirrorHide      BYTE
+MirrorMenus     &CBMirrorQueue,PRIVATE
 !  The event most recently pulled off the queue.  Read these from your
 !  TakeCommand / TakeToggled override, or straight after TakeEvent().
 LastItem        SIGNED
@@ -293,6 +306,13 @@ FindMenuBar     PROCEDURE(),SIGNED
 !-- every top-level menu it found.  Paste it into a MESSAGE() when a
 !-- mirrored bar comes out empty and it will tell you why.
 MenuReport      PROCEDURE(),STRING
+!-- Throw the mirrored menu away and read the MENUBAR again, onto the
+!-- same bar.  Call it when the frame's menu has CHANGED - which in an
+!-- MDI app means whenever a child window opens or closes, because
+!-- Clarion MERGES the child's own MENUBAR into the frame's.  (Setting
+!-- PROP:NoMerge on the child stops the merge instead, if you would
+!-- rather the frame's menu never changed.)  Returns the new count.
+RefreshMirror   PROCEDURE(),SIGNED,PROC,VIRTUAL
 !-- 'Ctrl+N' for a Clarion KEYCODE - what MirrorMenu puts in the shortcut
 !-- column, and useful on its own.
 KeyText         PROCEDURE(LONG clarionKeyCode),STRING
@@ -301,6 +321,14 @@ KeyText         PROCEDURE(LONG clarionKeyCode),STRING
 !-- this is what MirrorMenu uses to REPLACE the menu rather than sit
 !-- under it.  The ITEMs stay alive either way.
 SetHostMenu     PROCEDURE(BYTE visible)
+!-- Push the HOST's own child windows out of the docked strips.  A
+!-- Clarion APPLICATION frame lays its ClaToolBar and MDIClient out
+!-- against the FULL client area, so without this a docked bar is drawn
+!-- ON TOP of the frame's toolbar.  mode: 1 = always, 0 = never,
+!-- -1 = AUTO (the default) which turns it on for a frame and leaves a
+!-- plain window to FitControl.
+ReserveSpace    PROCEDURE(SIGNED mode)
+ReserveMode     PROCEDURE(),SIGNED
 HostMenuVisible PROCEDURE(),BYTE
 AddSubMenu      PROCEDURE(SIGNED container, STRING text, SIGNED menu, SIGNED image=0),SIGNED,PROC
 AddSpace        PROCEDURE(SIGNED container, SIGNED widthPx=0),SIGNED,PROC

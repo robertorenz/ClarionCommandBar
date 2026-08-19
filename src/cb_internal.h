@@ -225,6 +225,20 @@ struct CBContainer
 /*---------------------------------------------------------------------
   A queued user action.
   ---------------------------------------------------------------------*/
+/*---------------------------------------------------------------------
+  One of the HOST's own child windows, subclassed so its layout can be
+  corrected in flight.  `canon` is the rect the host last asked for,
+  measured against the FULL client area - transforming always starts
+  from that, never from where the window currently is, which is what
+  keeps the whole thing idempotent.
+  ---------------------------------------------------------------------*/
+struct CBHostKid
+{
+    HWND    hwnd;
+    WNDPROC oldProc;
+    RECT    canon;
+};
+
 struct CBEvent
 {
     int  item;
@@ -298,6 +312,14 @@ struct CBManager
 
     CBSeed         seed;            /* what the current theme IS        */
 
+    /* The host's own children.  They are SUBCLASSED, not repositioned:
+       Clarion derives the MDI client's top from the toolbar's HEIGHT
+       rather than its position, so moving them after the fact just
+       starts a fight.  Correcting WM_WINDOWPOSCHANGING wins instead. */
+    std::vector<CBHostKid> hostKids;
+    int            reserve;         /* 1 on, 0 off, -1 auto             */
+    bool           fixingHost;      /* our own SetWindowPos is in flight */
+
     /* the popup-menu chain currently on screen (container ids) */
     std::vector<int> menuChain;
     bool           menuCancelled;
@@ -350,6 +372,7 @@ struct CBManager
           procUser(0), inLayout(false), destroying(false), tipWnd(NULL),
           tipRt(NULL), menuCancelled(false), menuResult(0), menuResultItem(0),
           menuSwitchItem(0), suppressContainer(0), hostMenu(NULL),
+          reserve(-1), fixingHost(false),
           dragBar(0), dragActive(false), dragHint(NULL),
           dragDock(CBD_FLOAT), dragRow(0), dragApply(0),
           editWnd(NULL), editOldProc(NULL),
@@ -458,6 +481,11 @@ void           CBBeginDrag(CBManager* m, CBContainer* c, POINT screenPt);
 void           CBUpdateDrag(CBManager* m, POINT screenPt);
 void           CBEndDrag(CBManager* m, bool apply);
 void           CBApplyDrag(CBManager* m);
+/* Hook the HOST's own child windows so they lay out beside the bars
+   instead of underneath them, and unhook them again. */
+void           CBReserveFromHost(CBManager* m);
+void           CBReleaseHostChildren(CBManager* m);
+
 /* Dock `bar` at `row`, pushing every other bar on that side down. */
 void           CBInsertBarRow(CBManager* m, int bar, int dock, int row);
 
