@@ -81,6 +81,15 @@ General tab. If the stamp in the prompt sheet is not the one at the top of
 
 ## 5. Using the templates
 
+Four templates ship in the one `.tpl`:
+
+| Template | Kind | For |
+|---|---|---|
+| `CommandBarGlobal` | APPLICATION | add **once** per app |
+| `CommandBarOnWindow` | PROCEDURE extension | any window |
+| `CommandBarControl` | CONTROL, MULTI | dropped from the control palette; can land a bar on the REGION it places |
+| `CommandBarFrame` | PROCEDURE extension | an application FRAME; can mirror or replace its `MENUBAR` |
+
 ### 5a. `CommandBarGlobal` — application extension, add once per app
 
 *Application → Extensions → Insert → ClaCommandBar → CommandBarGlobal.*
@@ -129,6 +138,96 @@ CBPump:CommandBar ROUTINE
 ```
 
 Read `CommandBar.LastItem`, `LastCmd` and `LastParam` inside any of them.
+
+### 5b2. `CommandBarControl` — dropped from the control palette
+
+*Window designer → the control palette → ClaCommandBar → CommandBarControl.*
+
+It places a **REGION**. Position that region where you want the bar, then tick
+**Land on the region** on that bar in the Bars list. The bar fills the region
+exactly instead of docking to a window edge, so:
+
+* it takes **nothing** off the client area — your LIST stays where you put it;
+* the ABC resizer keeps moving the region, and the bar follows it.
+
+The region is hidden at run time and goes on reporting its position. Bars in
+the same instance *without* the tick dock to the window edges as usual, so you
+can mix the two.
+
+It is MULTI, so a window can carry several independent instances; every
+generated label is keyed on the template instance.
+
+### 5b3. `CommandBarFrame` — mirroring the frame's own menu
+
+*Procedure (a FRAME) → Extensions → Insert → ClaCommandBar → CommandBarFrame.*
+
+The **Menu** tab has three choices:
+
+| Choice | What happens |
+|---|---|
+| *Leave the menu alone* | ordinary command bars, the Clarion menu untouched |
+| *Mirror it onto a command bar* | the menu is rebuilt as a command bar **and** the original stays on the frame |
+| *Mirror it and take the original menu off the frame* | the command bar **replaces** the menu |
+
+Mirroring reads the `MENUBAR` at run time and reproduces it: same order, same
+nesting, the separators, the `KEY()` attributes as a shortcut column, and
+disabled items still disabled. Choosing a mirrored row POSTs `EVENT:Accepted`
+to the **original `ITEM`**, so every `CASE ACCEPTED()` branch and every menu
+embed you already wrote keeps running. You do not re-declare a single item.
+
+By hand it is one call:
+
+```clarion
+bar = CB.AddBar('Menu', CBD:Top, CBBS:MenuBar)
+CB.MirrorMenu(bar, 1)          ! 1 = take the original menu off the frame
+```
+
+`MirrorMenu` returns how many top-level menus it mirrored. `CB.SetHostMenu(1)`
+puts the real menu back.
+
+### 5b4. Ribbons
+
+A ribbon is a bar with `CBBS:Ribbon`; it holds **tabs**, a tab holds
+**groups**, and a group holds ordinary items — so a ribbon group is filled by
+exactly the same `AddButton` calls as a toolbar.
+
+In the templates: tick *Is a ribbon* on the bar, add rows to the **Ribbon** tab
+(tabs, then groups), then on the **Items** tab name the *group* in
+*Put it in*.
+
+Mark an item **Image above the text** and it becomes the big button; everything
+beside it stacks three-deep in small rows, which is how a ribbon lays a group
+out. The large button uses *Large icon size*, the small ones *Small icon size*.
+
+```clarion
+rib = CB.AddRibbon('Ribbon', CBD:Top)
+tab = CB.AddRibbonTab(rib, '&Home')
+grp = CB.AddRibbonGroup(tab, 'Clipboard')
+CB.AddLargeButton(grp, CMD:Paste, 'Paste', imgPaste)
+CB.AddButton(grp, CMD:Cut, 'Cut', imgCut)
+```
+
+Switching tabs raises `CBE:TabChanged` with the tab id in `LastParam`.
+
+### 5b5. What an item DOES
+
+Every item on the Items tab has an **Action**, generated just before that
+command's embed point:
+
+| Action | Generated |
+|---|---|
+| Embed code only | nothing — the embed is all there is |
+| Call a procedure | `MyProcedure(parms)` |
+| Do a routine | `DO MyRoutine` — the ROUTINE must exist in that procedure |
+| Emulate a control | `POST(EVENT:Accepted, ?Control)` |
+| Post an event | `POST(EVENT:Whatever, ?Control)` |
+| Close the window | `POST(EVENT:CloseWindow)` |
+
+*Emulate a control* is the one to reach for first: point a bar button at a
+BUTTON or a menu ITEM that is already on the window and its own embed code
+runs, with nothing duplicated.
+
+Where two items share one command id, the **first** of them decides the action.
 
 ### 5c. Putting your own controls under the bars
 
@@ -195,6 +294,18 @@ A 24px slot for 32px art looks far better than a 16px one.
   the calling ACCEPT loop is suspended while a menu is open. The chosen command
   arrives as a normal queued event afterwards, and `TrackMenu` / `PopupMenu`
   also return it directly.
+* **A Clarion MENUBAR ignores `PROP:Hide`.** It is a real Win32 menu on the
+  frame, so removing it means `SetMenu(hwnd, NULL)` — which the DLL does, and
+  then **re-asserts**, because the Clarion runtime re-attaches the menu while
+  the window finishes opening. The menu is kept, not destroyed, and put back on
+  `CB_Destroy`; the field equates stay valid the whole time, which is what lets
+  a mirrored row still POST to its `ITEM`.
+* **Menu controls live outside `FIRSTFIELD()..LASTFIELD()`.** They occupy a
+  synthetic range that starts at `0{PROP:MenuBar}`. A MENU answers
+  `PROP:Child,n` with its immediate children **in declaration order**, submenus
+  and separators included — but the MENUBAR itself does not, so the top-level
+  menus are found by scanning for `CREATE:menu` controls whose `PROP:Parent` is
+  the menubar. A menu ITEM with empty `PROP:Text` is a separator.
 * **`CBE:DropDown` is queued before a menu opens,** but a Clarion app polling
   on a timer only sees it *after* the menu has closed. Filling a menu on the
   fly needs the immediate C callback (`CB_SetCallback`), not the poll queue.
@@ -217,6 +328,10 @@ A 24px slot for 32px art looks far better than a 16px one.
 | `ClaCommandBar: item 4 says "Put it in: Toolbar" but there is no bar or menu with that name` | exactly what it says — the Items tab names a container that is not on the Bars or Menus tab. Names are matched case-insensitively but otherwise exactly |
 | Icons look pale and washed out | 32px artwork in a 16px slot. Raise *Small icon size*, or use art drawn at the size you are showing it |
 | A plain menu row grows a check mark every time it is picked | *auto-check* is ticked on it. That setting is for menu rows that behave like a setting; toggle buttons and check boxes do it anyway |
+| `Illegal data type: COMMANDBAR` on the generated object | a `#INSERT` that emits LABELS was indented. `#INSERT` carries the indentation of its own line into every line the group emits, and a Clarion label must start in column 1 — `#INSERT(%CBEmitData)` and `#INSERT(%CBEmitFitRoutine)` sit at column 0 for that reason |
+| The mirrored bar appears but the Clarion menu is still above it | *Mirror it onto a command bar* was chosen instead of *…take the original menu off the frame*. If you picked the latter and it still shows, the host window is not the one the manager was created on |
+| A mirrored row does nothing | its original `ITEM` has no `CASE ACCEPTED()` branch — mirroring only forwards the click, it does not invent behaviour |
+| A ribbon group is empty | the item's *Put it in* names the TAB, not the GROUP. Items go in a group |
 | A toggle button no longer stays down | its style was overwritten. `SetItemStyle` **replaces** the style word — include `CBIS:AutoCheck` when you set it by hand |
 
 ## 8. Verifying a change without opening the IDE

@@ -457,6 +457,8 @@ CB       CommandBarClass
 barTop   SIGNED
 barTop2  SIGNED
 barBot   SIGNED
+itStatus SIGNED
+itReady  SIGNED
 barLeft  SIGNED
 barRight SIGNED
 barFloat SIGNED
@@ -472,12 +474,10 @@ iFind    SIGNED
 iHelp    SIGNED
 iUndo    SIGNED
 iRedo    SIGNED
-Msg      STRING(120)
 
 Window WINDOW('Docking - four edges, two rows, and a floating bar'),AT(,,600,380), |
          GRAY,SYSTEM,MAX,RESIZE,FONT('Segoe UI',9),TIMER(10)
        REGION,AT(4,4,592,372),USE(?Client),FILL(COLOR:White)
-       STRING(@s120),AT(16,16,560,12),USE(Msg)
      END
 
   CODE
@@ -517,9 +517,9 @@ Window WINDOW('Docking - four edges, two rows, and a floating bar'),AT(,,600,380
   CB.AddButton(barRight, 21, 'Redo', iRedo)
 
   barBot = CB.AddBar('Bottom', CBD:Bottom, CBBS:NoBorder)
-  CB.AddLabel(barBot, 'A bottom bar behaves like a status strip.')
+  itStatus = CB.AddLabel(barBot, 'A bottom bar behaves like a status strip.')
   CB.AddSpace(barBot)
-  CB.AddLabel(barBot, 'Ready')
+  itReady  = CB.AddLabel(barBot, 'Ready')
 
   barFloat = CB.AddBar('Floating', CBD:Float, CBBS:Floatable)
   CB.AddButton(barFloat, 30, 'Bold',   0)
@@ -536,8 +536,7 @@ Window WINDOW('Docking - four edges, two rows, and a floating bar'),AT(,,600,380
         IF CB.LastEvent = CBE:Layout
           DO Fit
         ELSIF CB.LastEvent = CBE:Command
-          Msg = 'Command ' & CB.LastCmd
-          DISPLAY
+          CB.SetItemText(itReady, 'Command ' & CB.LastCmd)
         END
       END
       CYCLE
@@ -552,10 +551,12 @@ Window WINDOW('Docking - four edges, two rows, and a floating bar'),AT(,,600,380
 
 Fit ROUTINE
   CB.FitControl(?Client, 2, 2)
-  Msg = 'The white box is CB.ClientX/Y/Width/Height - ' &                |
+  !  The white REGION is exactly what CB.ClientX/Y/Width/Height report,
+  !  and the status text goes in the bottom BAR - a fixed STRING would
+  !  sit behind the top bars.
+  CB.SetItemText(itStatus, 'Client area left by five bars: ' &           |
         CB.ClientWidth() & ' x ' & CB.ClientHeight() &                   |
-        ' px left after five bars. Drag the floating bar by its caption.'
-  DISPLAY
+        ' px.  Drag the floating bar by its caption.')
 
 !=====================================================================
 !  4  A BAR ON A REGION - what the CONTROL template generates

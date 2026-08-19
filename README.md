@@ -1,6 +1,6 @@
-# ClaCommandBar — Direct2D command bars for Clarion
+# ClaCommandBar — Direct2D command bars, ribbons and menus for Clarion
 
-Codejock-style command bars, menu bars and popup menus for Clarion
+Codejock-style command bars, ribbons, menu bars and popup menus for Clarion
 applications (9 through 12), rendered with Direct2D/DirectWrite by a native C++
 DLL and wired into the Clarion AppGen through the `ClaCommandBar` template
 chain (ABC).
@@ -9,17 +9,30 @@ Same shape as its sister project [ClaPropGrid](https://github.com/robertorenz/fo
 a flat `__stdcall` C API in a 32-bit DLL, a Clarion wrapper class, ordinals
 pinned as a contract, and templates that generate the wiring.
 
-![screenshot](docs/screenshot.png)
+## It can take over the menu you already have
 
-*Above: a Clarion application. The menu bar, both toolbars, the left dock, the
-split button, the combo, the colour picker and the in-bar edit are all drawn by
-`COMMANDBAR.DLL`.*
+![mirrored menu](docs/mirrored-menu.png)
+
+That menu is not hand-built. `MirrorMenu` reads the window's **own Clarion
+`MENUBAR`** and rebuilds it as a command bar — the same order, the same
+nesting, the separators, the `KEY()` attributes turned into a shortcut column,
+and disabled items still disabled. Choosing a mirrored row POSTs
+`EVENT:Accepted` to the **original `ITEM`**, so every menu embed you already
+wrote goes on running and you re-declare nothing. Optionally the real menu is
+taken off the frame entirely, so the command bar *replaces* it.
 
 ## What you get
 
 **Bars** dock top, bottom, left or right, stack in rows, sit side by side in a
-row, or float in a caption frame you can drag (double-click the caption to send
-it home). A bar can carry a gripper, large icons, no border, or be the menu bar.
+row, float in a caption frame you can drag, or land exactly on a REGION you
+positioned in the window designer. A bar can carry a gripper, large icons, no
+border, or be the menu bar.
+
+**Ribbons** — a bar of tabs, each tab a row of groups, each group full of
+ordinary items. `CBIS:TextBelow` makes the big image-over-text button;
+everything beside it stacks three-deep in small rows.
+
+![ribbon](docs/ribbon.png)
 
 **Items** — everything in one namespace, so a toolbar Save and a menu Save can
 share a command id and be greyed out together with one call:
@@ -45,6 +58,12 @@ and radio dots, a right-hand shortcut column, `&` accelerator underlines, full
 keyboard navigation, and the slide-across behaviour that makes a menu bar feel
 like a menu bar. `TrackMenu` pops one anywhere for a context menu.
 
+**Docking on every edge at once**, plus a floating bar and a status strip —
+and `ClientX/Y/Width/Height` reports exactly what is left for your own
+controls:
+
+![docking](docs/docking.png)
+
 **Overflow** — a bar too narrow for its items grows a chevron that drops the
 rest, or wraps them onto extra rows.
 
@@ -69,15 +88,34 @@ you can install and use the templates without a C++ compiler — see
 [`clarion\INSTALL.md`](clarion/INSTALL.md). Rebuild the engine only if you
 change `src\`.
 
-## Using it from the templates
+## The four templates
 
-Add `CommandBarGlobal` once at the application level, then
-`CommandBarOnWindow` on any window. Define bars, menus and items in three
-lists; the template generates the build, the event pump, the resize handling
-and **one embed point per command id**.
+| Template | Kind | For |
+|---|---|---|
+| `CommandBarGlobal` | APPLICATION | add **once** per app: places the class and `commandbar.lib` |
+| `CommandBarOnWindow` | PROCEDURE extension | bars, ribbons and menus on any window |
+| `CommandBarControl` | CONTROL, MULTI | **dropped from the control palette** onto a window, browse or form. It places a REGION, and a bar ticked *Land on the region* fills it exactly instead of docking — so it takes nothing off the client area and the ABC resizer keeps moving it |
+| `CommandBarFrame` | PROCEDURE extension | an application **FRAME**: everything above, plus mirroring or replacing the frame's own `MENUBAR` |
 
-An item names the bar or menu it belongs to. A name that resolves to nothing is
-a generate-time `#ERROR`, not a silently missing button.
+![bar on a region](docs/region.png)
+
+Define bars, ribbon tabs, groups, menus and items in a few lists; the template
+generates the build, the event pump, the resize handling and **one embed point
+per command id**. An item names the bar, ribbon group or menu it belongs to —
+a name that resolves to nothing is a generate-time `#ERROR`, not a silently
+missing button.
+
+Every item also gets an **action**, the Clarion way:
+
+| Action | What is generated |
+|---|---|
+| Call a procedure | `MyProcedure(parms)` |
+| Do a routine | `DO MyRoutine` |
+| Emulate a control | `POST(EVENT:Accepted, ?ThatButton)` — point a bar button at a BUTTON or menu ITEM already on the window |
+| Post an event | `POST(EVENT:Whatever, ?Control)` |
+| Close the window | `POST(EVENT:CloseWindow)` |
+
+The action runs, then that command's embed point runs.
 
 ## Using it from code
 
@@ -92,13 +130,13 @@ it    SIGNED
   CB.SetTheme(CBT:Office2013)
   CB.SetAccent(COLOR:Teal)                       ! re-skin the whole palette
 
-  mFile = CB.CreateMenu()
-  CB.AddMenuTitle(CB.AddMenuBar(), '&File', mFile)
-  it = CB.AddButton(mFile, CMD:Save, '&Save', CB.AddImage('save.ico'))
-  CB.SetItemShortcut(it, 'Ctrl+S')
+  !  take over the window's own MENUBAR, and drop the original
+  CB.MirrorMenu(CB.AddMenuBar(), 1)
 
   bar = CB.AddBar('Standard', CBD:Top, CBBS:Gripper)
   CB.SetBarDock(bar, CBD:Top, 1, 0)              ! second row
+  mFile = CB.CreateMenu()
+  CB.AddButton(mFile, CMD:Save, '&Save', CB.AddImage('save.ico'))
   CB.AddSplitButton(bar, CMD:Open, 'Open', mFile, CB.AddImage('open.ico'))
   CB.AddCombo(bar, CMD:Zoom, '50%|100%|200%', 80)
 
@@ -127,23 +165,34 @@ it    SIGNED
 Or derive from `CommandBarClass` and override `TakeCommand`, `TakeToggled`,
 `TakeSelChanged` and friends instead of reading `Last…`.
 
+A ribbon is the same calls, one level deeper:
+
+```clarion
+rib = CB.AddRibbon('Ribbon', CBD:Top)
+tab = CB.AddRibbonTab(rib, '&Home')
+grp = CB.AddRibbonGroup(tab, 'Clipboard')
+CB.AddLargeButton(grp, CMD:Paste, 'Paste', imgPaste)   ! the big one
+CB.AddButton(grp, CMD:Cut,  'Cut',  imgCut)            ! stacks beside it
+CB.AddButton(grp, CMD:Copy, 'Copy', imgCopy)
+```
+
 ## Repository layout
 
 | Path | Contents |
 |------|----------|
 | `src/` | `commandbar.h/.def` — the API and its pinned ordinals; `cb_internal.h`, `commandbar.cpp` (API + layout), `cb_render.cpp` (themes, drawing, window procedures, menu tracking); `testhost.c` — a standalone visual test; `build.bat`; `make-clarion-lib.ps1` |
 | `bin/` | `commandbar.dll` (32-bit), `testhost.exe`, MSVC import lib |
-| `clarion/` | `CommandBar.inc/.clw` — the wrapper class (compiles in any Clarion version); `ClaCommandBar.tpl` — the template chain; `commandbar.lib`; `INSTALL.md` |
+| `clarion/` | `CommandBar.inc/.clw` — the wrapper class; `ClaCommandBar.tpl` — all four templates in one file; `commandbar.lib`; `INSTALL.md` |
 | `docs/` | screenshots |
-| `examples/` | `CommandBarDemo/` — a hand-coded Clarion app exercising every item type, all eleven themes, docking, floating and a context menu |
+| `examples/` | `CommandBarShowcase/` — **start here**: a mirrored Clarion menu, a ribbon, docking on four edges, and a bar on a REGION. `CommandBarDemo/` — one window exercising every item type and all eleven themes |
 
 ## Building the DLL
 
 Run `src\build.bat` (needs Visual Studio 2022). It produces a **32-bit**
 `bin\commandbar.dll` (Clarion apps are 32-bit), `testhost.exe` — a plain Win32
-program that exercises every item type and every theme without involving
-Clarion (`testhost.exe 7` starts on theme 7) — and `clarion\commandbar.lib`,
-generated straight from `commandbar.def`.
+program that exercises every item type, the ribbon and every theme without
+involving Clarion (`testhost.exe 7` starts on theme 7) — and
+`clarion\commandbar.lib`, generated straight from `commandbar.def`.
 
 **Export ordinals in `commandbar.def` are a contract. Never renumber or reuse
 one**; new exports get the next free number, appended.
@@ -155,15 +204,18 @@ Windows DLLs — Windows 7 SP1 through Windows 11, no VC++ redistributable.
 
 Not by inspection:
 
-* the engine, standalone — `testhost.exe` drives every item type, every theme,
-  submenus, tooltips, the colour picker and the overflow chevron;
-* the class, inside Clarion — `examples\CommandBarDemo` builds with MSBuild and
-  runs, which is how the z-order and icon-scaling defects were found;
-* the template, through AppGen — registered with `ClarionCL -tr`, attached to a
-  procedure of a shipped example app via TXA, generated, and the generated code
-  **compiled to a working EXE**. `INSTALL.md` §8 documents that loop so you can
-  repeat it after any change.
+* **the engine, standalone** — `testhost.exe` drives every item type, the
+  ribbon, every theme, submenus, tooltips, the colour picker and the chevron;
+* **the class, inside Clarion** — `examples\CommandBarShowcase` builds and
+  runs, which is how the z-order, icon-scaling and menu-detach defects were
+  found; clicking a mirrored menu row was checked to fire the original `ITEM`,
+  submenu rows included;
+* **the templates, through AppGen** — registered with `ClarionCL -tr`, the
+  frame extension attached to a shipped example app's FRAME and the window
+  extension to one of its browses, populated through TXA, generated, and the
+  generated code **compiled to a working EXE**. `INSTALL.md` §8 documents that
+  loop so you can repeat it after any change.
 
 ## Status
 
-Internal tool. Engine, wrapper and template generated 2026-08-19.
+Internal tool. Engine, wrapper, class and templates generated 2026-08-19.
