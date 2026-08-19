@@ -25,6 +25,11 @@ BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID)
    hook) with this property, so any window procedure can find it. */
 static const wchar_t* CBPROP = L"ClaCommandBar.Mgr";
 
+/*  Diagnostic trace, off unless CB_HOSTLOG=1 is in the environment.
+    Defined with the host-space reservation further down; declared here
+    because the parent subclass wants it too. */
+static void CBHostLog(const char* fmt, ...);
+
 /*=====================================================================
   Lookups and the event queue
   =====================================================================*/
@@ -845,6 +850,28 @@ static LRESULT CALLBACK CBParentProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         CBRelayout(m);
         return r;
     }
+    case WM_PARENTNOTIFY:
+    {
+        /*  The host just created or destroyed a child of its own.  On an
+            MDI frame that is exactly what a merge does: opening a child
+            window makes Clarion build a NEW ClaToolBar for the merged
+            toolbar and hide the old one - and the new one starts at the
+            top of the client area, which is underneath the bars.  Left
+            alone it stays there and reads as a toolbar that vanished
+            the moment a procedure opened.
+
+            Posted rather than handled here: the host is still in the
+            middle of building the window. */
+        LRESULT r = CallWindowProcW(old, hwnd, msg, wp, lp);
+        const UINT what = LOWORD(wp);
+        if (what == WM_CREATE || what == WM_DESTROY)
+            PostMessageW(hwnd, CBMSG_HOSTKIDS, 0, 0);
+        return r;
+    }
+    case CBMSG_HOSTKIDS:
+        CBReserveFromHost(m);
+        return 0;
+
     case CBMSG_APPLYDRAG:
         CBApplyDrag(m);
         return 0;
@@ -1722,7 +1749,15 @@ int CBAPI CB_TranslateKey(HCB cb, int key, int mods)
 int CBAPI CB_PollEvent(HCB cb, int* item, long* cmdId, int* evType, long* param)
 {
     CBManager* m = (CBManager*)cb;
-    if (!m || m->events.empty()) return 0;
+    if (!m) return 0;
+    if (m->events.empty())
+    {
+        /*  The pump drains the queue every tick, so this runs once a
+            tick: the moment to notice a toolbar the host rebuilt behind
+            our back. */
+        CBWatchHostKids(m);
+        return 0;
+    }
     CBEvent e = m->events.front();
     m->events.pop_front();
     if (item)   *item   = e.item;
@@ -2297,6 +2332,10 @@ static LRESULT CALLBACK CBHostKidProc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
             toolbar vanish the moment an MDI child merged into it. */
         const bool moving = (p->flags & (SWP_NOMOVE | SWP_NOSIZE))
                                 != (SWP_NOMOVE | SWP_NOSIZE);
+        if (p->flags & (SWP_HIDEWINDOW | SWP_SHOWWINDOW))
+            CBHostLog("%-8s %-12s flags=%08X\r\n",
+                      (p->flags & SWP_HIDEWINDOW) ? "HIDE" : "SHOW",
+                      CBClsOf(h), p->flags);
         if (k && moving)
         {
             RECT canon;
@@ -2397,6 +2436,27 @@ void CBReserveFromHost(CBManager* m)
     }
 
     CBApplyHostLayout(m);
+}
+
+/*  Has the host grown a child we have not hooked?  Clarion builds the
+    merged toolbar without any layout happening afterwards, so waiting
+    for CBRelayout to notice is waiting for something that may never
+    come.  WM_PARENTNOTIFY covers it when the host sends one; this is
+    the backstop for when it does not, and it is cheap enough to run on
+    every poll - an MDI frame has about four direct children. */
+void CBWatchHostKids(CBManager* m)
+{
+    if (!m || m->destroying || m->reserve == 0 || !IsWindow(m->parent)) return;
+    if (m->hostKids.empty()) return;      /* nothing hooked yet - not our case */
+
+    std::vector<HWND> kids;
+    CBHostChildren(m, &kids);
+    for (size_t i = 0; i < kids.size(); ++i)
+    {
+        if (CBFindKid(m, kids[i])) continue;
+        CBReserveFromHost(m);             /* something new - hook and place it */
+        return;
+    }
 }
 
 void CBReleaseHostChildren(CBManager* m)

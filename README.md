@@ -24,9 +24,11 @@ taken off the frame entirely, so the command bar *replaces* it.
 On an MDI frame the bar mirrors the **frame's own** `MENUBAR`. A menu that a
 child window merges in cannot be mirrored — the child's controls live on the
 child's thread and the merged Win32 menu is owner-drawn with no readable text —
-so use `PROP:NoMerge` on the children, or leave the real menu attached. The
-frame's toolbar and MDI client are moved out from under the bars either way,
-including across the toolbar Clarion rebuilds on every merge.
+so use `NOMERGE` on the children, or leave the real menu attached — but put it
+on the **child**, never on the frame's own `TOOLBAR`, where it makes the
+toolbar disappear as soon as any MDI procedure opens. The frame's toolbar and
+MDI client are moved out from under the bars either way, including across the
+toolbar Clarion rebuilds on every merge.
 
 ## What you get
 

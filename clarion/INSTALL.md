@@ -348,9 +348,17 @@ choice, and it is worth knowing exactly where the wall is:
 So plan the frame's bar around the frame's own menu, and use one of these for
 the rest:
 
-* **`PROP:NoMerge`** on the child window — stops Clarion merging at all, so the
-  frame's menu never changes and one mirror lasts the life of the app. This is
-  the tidy answer when the frame's bar is meant to be the whole menu.
+* **`NOMERGE` on the child window** — stops Clarion merging that child in, so
+  the frame's menu never changes and one mirror lasts the life of the app.
+  This is the tidy answer when the frame's bar is meant to be the whole menu.
+
+  > **Put it on the CHILD, never on the frame's own `TOOLBAR`.** `NOMERGE` on
+  > an `APPLICATION` frame's `TOOLBAR` means "do not carry this toolbar into
+  > the merge", and the frame's toolbar then **disappears the moment any MDI
+  > procedure opens**. Measured on a real ABC app: with `NOMERGE` set on the
+  > frame's `?TOOLBAR1` the toolbar was hidden and the MDI client took the
+  > whole client area; clearing it put the toolbar back. Nothing to do with
+  > the command bar — it happens with or without one.
 * **Leave the child's menu alone** — a child that merges normally still shows
   its own menu through the frame's real menu bar, so keep `HideOriginal` off
   (`MirrorMenu(bar, 0)`) if the children need their merged menus.
@@ -478,7 +486,8 @@ A 24px slot for 32px art looks far better than a 16px one.
 | The mirrored bar is **empty** | `MirrorMenu` found no MENU whose `PROP:Parent` is the menubar. Call `CB.MenuReport()` and read what it says — it names the menubar equate, says whether it sees a `WINDOW` or an `APPLICATION` frame, and lists what it found. If `PROP:MenuBar` is 0 the window has no menubar of its own: mirror on the **FRAME**, not on an MDI child, or pass the equate to `MirrorMenuFrom` |
 | A docked bar is drawn **on top of** the frame's toolbar | space reservation is off, or the host is not recognised as owning its layout. Call `CommandBar.ReserveSpace(1)` to force it |
 | Mirrored rows appear but **clicking does nothing** on a FRAME | fixed in v1.2. A frame numbers its menu controls NEGATIVE, so a mirrored command id lands just *below* `MirrorBase`, and the old test only matched ids above it |
-| The frame's menu gained items and the mirrored bar did not | an MDI child merged its menu in — that cannot be mirrored (see 5b8). Set `PROP:NoMerge` on the child, or mirror with `HideOriginal` off |
+| The frame's menu gained items and the mirrored bar did not | an MDI child merged its menu in — that cannot be mirrored (see 5b8). Set `NOMERGE` on the child, or mirror with `HideOriginal` off |
+| The frame's TOOLBAR disappears when a procedure opens | check the frame's `TOOLBAR` for **`NOMERGE`** and clear it — that attribute drops the toolbar out of the merge, so opening any MDI child takes it away. It is not caused by the bars |
 | A frame child (toolbar, MDI client) sits in the wrong place | set `CB_HOSTLOG=1` in the environment and run again — every host-child move is traced to `%TEMP%\cbhost.log` |
 | A mirrored row does nothing | its original `ITEM` has no `CASE ACCEPTED()` branch — mirroring only forwards the click, it does not invent behaviour |
 | A ribbon group is empty | the item's *Put it in* names the TAB, not the GROUP. Items go in a group |

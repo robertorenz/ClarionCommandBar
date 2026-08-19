@@ -43,6 +43,10 @@
    that window's own message handler.  The drop is posted to the parent
    and applied from there instead. */
 #define CBMSG_APPLYDRAG (WM_APP + 0x5B)
+/*  Posted to the host when it creates or destroys a child of its own, so
+    the new window is picked up and pushed clear of the bars.  Posted,
+    not sent: it arrives after the host has finished building it. */
+#define CBMSG_HOSTKIDS  (WM_APP + 0x5C)
 
 #define CBTIMER_TIPSHOW  1      /* hover dwell before a tooltip appears */
 #define CBTIMER_TIPHIDE  2      /* auto-hide the tooltip again          */
@@ -377,6 +381,7 @@ struct CBManager
           procUser(0), inLayout(false), destroying(false), tipWnd(NULL),
           tipRt(NULL), menuCancelled(false), menuResult(0), menuResultItem(0),
           menuSwitchItem(0), suppressContainer(0), hostMenu(NULL),
+
           reserve(-1),
           dragBar(0), dragActive(false), dragHint(NULL),
           dragDock(CBD_FLOAT), dragRow(0), dragApply(0),
@@ -490,6 +495,10 @@ void           CBApplyDrag(CBManager* m);
 /* Hook the HOST's own child windows so they lay out beside the bars
    instead of underneath them, and unhook them again. */
 void           CBReserveFromHost(CBManager* m);
+/*  Cheap check for a host child we have not seen yet - a merged toolbar
+    the host built without telling us.  Enumerates a handful of windows;
+    only does real work when something new turns up. */
+void           CBWatchHostKids(CBManager* m);
 void           CBReleaseHostChildren(CBManager* m);
 
 /* Dock `bar` at `row`, pushing every other bar on that side down. */
