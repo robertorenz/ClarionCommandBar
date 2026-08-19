@@ -351,6 +351,16 @@ void  CBAPI CB_SetCallback(HCB cb, CB_EVENTPROC proc, long userData);
 /* user32 itself just to pop a menu at the pointer.                     */
 void  CBAPI CB_GetCursorPos(int* x, int* y);
 
+/* Take the host window's own menu bar off the frame, or put it back.   */
+/* PROP:Hide does nothing to a Clarion MENUBAR - it is a real Win32     */
+/* menu on the frame, so it has to be detached with SetMenu().  The     */
+/* menu itself is kept, not destroyed, and the field equates stay valid: */
+/* POSTing EVENT:Accepted to a menu ITEM still works while it is off.   */
+/* That is what lets a mirrored command bar REPLACE the menu instead of */
+/* just sitting under it.                                              */
+void  CBAPI CB_SetHostMenuVisible(HCB cb, int visible);
+int   CBAPI CB_GetHostMenuVisible(HCB cb);
+
 #ifdef __cplusplus
 }
 #endif

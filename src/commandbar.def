@@ -89,3 +89,5 @@ EXPORTS
     CB_GetActiveTab      @74
     CB_GetTabCount       @75
     CB_GetTabAt          @76
+    CB_SetHostMenuVisible @77
+    CB_GetHostMenuVisible @78

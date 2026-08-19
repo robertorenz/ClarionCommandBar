@@ -61,6 +61,13 @@ CB_GetBarDock        PROCEDURE(LONG cb, SIGNED bar),SIGNED,PASCAL,NAME('CB_GetBa
 CB_SetBarVisible     PROCEDURE(LONG cb, SIGNED bar, SIGNED visible),PASCAL,NAME('CB_SetBarVisible')
 CB_GetBarVisible     PROCEDURE(LONG cb, SIGNED bar),SIGNED,PASCAL,NAME('CB_GetBarVisible')
 CB_FloatBar          PROCEDURE(LONG cb, SIGNED bar, SIGNED x, SIGNED y),PASCAL,NAME('CB_FloatBar')
+CB_SetBarRect        PROCEDURE(LONG cb, SIGNED bar, SIGNED x, SIGNED y, SIGNED w, SIGNED h),PASCAL,NAME('CB_SetBarRect')
+CB_AddRibbonTab      PROCEDURE(LONG cb, SIGNED bar, *CSTRING text),SIGNED,PROC,PASCAL,RAW,NAME('CB_AddRibbonTab')
+CB_AddRibbonGroup    PROCEDURE(LONG cb, SIGNED tab, *CSTRING text),SIGNED,PROC,PASCAL,RAW,NAME('CB_AddRibbonGroup')
+CB_SetActiveTab      PROCEDURE(LONG cb, SIGNED bar, SIGNED tab),PASCAL,NAME('CB_SetActiveTab')
+CB_GetActiveTab      PROCEDURE(LONG cb, SIGNED bar),SIGNED,PASCAL,NAME('CB_GetActiveTab')
+CB_GetTabCount       PROCEDURE(LONG cb, SIGNED bar),SIGNED,PASCAL,NAME('CB_GetTabCount')
+CB_GetTabAt          PROCEDURE(LONG cb, SIGNED bar, SIGNED index),SIGNED,PASCAL,NAME('CB_GetTabAt')
 CB_TrackMenu         PROCEDURE(LONG cb, SIGNED menu, SIGNED x, SIGNED y),LONG,PROC,PASCAL,NAME('CB_TrackMenu')
 CB_AddItem           PROCEDURE(LONG cb, SIGNED container, SIGNED itemType, LONG cmdId, *CSTRING text, SIGNED image),SIGNED,PROC,PASCAL,RAW,NAME('CB_AddItem')
 CB_InsertItem        PROCEDURE(LONG cb, SIGNED container, SIGNED beforeItem, SIGNED itemType, LONG cmdId, *CSTRING text, SIGNED image),SIGNED,PROC,PASCAL,RAW,NAME('CB_InsertItem')
@@ -118,6 +125,7 @@ CommandBarClass.Construct PROCEDURE()
   SELF.Initialized   = 0
   SELF.TimerInterval = 10
   SELF.MenuBar       = 0
+  SELF.MirrorBase    = 1000000
   SELF.LastItem      = 0
   SELF.LastCmd       = 0
   SELF.LastEvent     = 0
@@ -490,6 +498,85 @@ CommandBarClass.RemoveItem PROCEDURE(SIGNED item)
   CODE
   IF SELF.CB THEN CB_RemoveItem(SELF.CB, item).
 
+
+!---------------------------------------------------------------------
+! ribbons, and bars you place yourself
+!---------------------------------------------------------------------
+CommandBarClass.SetBarRect PROCEDURE(SIGNED bar, SIGNED x, SIGNED y, SIGNED width, SIGNED height)
+  CODE
+  IF SELF.CB THEN CB_SetBarRect(SELF.CB, bar, x, y, width, height).
+
+!  Reads the control's rectangle in PIXELS - the same save / set / restore
+!  of 0{PROP:Pixels} that FitControl does, because PROP:XPos and friends
+!  are dialog units until the window is switched over.
+CommandBarClass.PlaceOnControl PROCEDURE(SIGNED bar, SIGNED feq, BYTE hideControl=1)
+x   SIGNED
+y   SIGNED
+w   SIGNED
+h   SIGNED
+sav BYTE
+  CODE
+  IF ~SELF.CB OR ~feq OR SELF.Win &= NULL THEN RETURN.
+  SETTARGET(SELF.Win)
+  sav = 0{PROP:Pixels}
+  0{PROP:Pixels} = TRUE
+  x = feq{PROP:XPos}
+  y = feq{PROP:YPos}
+  w = feq{PROP:Width}
+  h = feq{PROP:Height}
+  0{PROP:Pixels} = sav
+  !  Hidden, not destroyed: it still reports its position, so the ABC
+  !  resizer goes on moving it and the bar follows on every Reposition.
+  IF hideControl THEN feq{PROP:Hide} = 1.
+  SETTARGET()
+  IF w < 1 THEN w = 1.
+  IF h < 1 THEN h = 1.
+  CB_SetBarRect(SELF.CB, bar, x, y, w, h)
+
+CommandBarClass.AddRibbon PROCEDURE(STRING title, SIGNED dock=0)
+  CODE
+  RETURN SELF.AddBar(title, dock, CBBS:Ribbon)
+
+CommandBarClass.AddRibbonTab PROCEDURE(SIGNED bar, STRING text)
+cText CSTRING(128)
+  CODE
+  IF ~SELF.CB THEN RETURN 0.
+  cText = CLIP(LEFT(text))
+  RETURN CB_AddRibbonTab(SELF.CB, bar, cText)
+
+CommandBarClass.AddRibbonGroup PROCEDURE(SIGNED tab, STRING text)
+cText CSTRING(128)
+  CODE
+  IF ~SELF.CB THEN RETURN 0.
+  cText = CLIP(LEFT(text))
+  RETURN CB_AddRibbonGroup(SELF.CB, tab, cText)
+
+CommandBarClass.SetActiveTab PROCEDURE(SIGNED bar, SIGNED tab)
+  CODE
+  IF SELF.CB THEN CB_SetActiveTab(SELF.CB, bar, tab).
+
+CommandBarClass.ActiveTab PROCEDURE(SIGNED bar)
+  CODE
+  IF ~SELF.CB THEN RETURN 0.
+  RETURN CB_GetActiveTab(SELF.CB, bar)
+
+CommandBarClass.TabCount PROCEDURE(SIGNED bar)
+  CODE
+  IF ~SELF.CB THEN RETURN 0.
+  RETURN CB_GetTabCount(SELF.CB, bar)
+
+CommandBarClass.TabAt PROCEDURE(SIGNED bar, SIGNED index)
+  CODE
+  IF ~SELF.CB THEN RETURN 0.
+  RETURN CB_GetTabAt(SELF.CB, bar, index)
+
+CommandBarClass.AddLargeButton PROCEDURE(SIGNED container, LONG cmd, STRING text, SIGNED image=0)
+id SIGNED
+  CODE
+  id = SELF.AddItem(container, CBI:Button, cmd, text, image)
+  IF id THEN SELF.SetItemStyle(id, CBIS:TextBelow).
+  RETURN id
+
 !---------------------------------------------------------------------
 ! item properties
 !---------------------------------------------------------------------
@@ -714,26 +801,167 @@ mods SIGNED
   IF BAND(cm, 4) THEN mods += CBK:Alt.
   RETURN CB_TranslateKey(SELF.CB, vk, mods)
 
+
+!---------------------------------------------------------------------
+! mirroring the window's own MENUBAR
+!
+! Measured on Clarion 12 (see INSTALL.md "Verified runtime notes"):
+!   * 0{PROP:MenuBar} is the MENUBAR's field equate.
+!   * A MENU answers PROP:Child,n with its immediate children IN
+!     DECLARATION ORDER - submenus and separators included.  The
+!     MENUBAR itself does NOT, so the top-level menus are found by
+!     scanning for CREATE:menu controls whose PROP:Parent is the
+!     menubar; Clarion numbers those sequentially, so ascending feq is
+!     declaration order.
+!   * A menu ITEM with empty PROP:Text is a SEPARATOR.
+!   * Menu controls live OUTSIDE FIRSTFIELD()..LASTFIELD(), in a
+!     synthetic range that starts at the menubar's own equate.
+!---------------------------------------------------------------------
+CommandBarClass.MirrorMenu PROCEDURE(SIGNED bar, BYTE hideOriginal=1)
+mb    SIGNED
+feq   SIGNED
+top   SIGNED
+sub   SIGNED
+n     SIGNED
+  CODE
+  IF ~SELF.CB OR SELF.Win &= NULL THEN RETURN 0.
+  SETTARGET(SELF.Win)
+  mb = 0{PROP:MenuBar}
+  IF ~mb
+    SETTARGET()
+    RETURN 0
+  END
+
+  n = 0
+  LOOP feq = mb + 1 TO mb + 1024
+    IF feq{PROP:Type} <> CREATE:menu THEN CYCLE.
+    IF feq{PROP:Parent} <> mb THEN CYCLE.
+    sub = SELF.CreateMenu()
+    top = SELF.AddMenuTitle(bar, feq{PROP:Text}, sub)
+    IF ~top THEN CYCLE.
+    IF feq{PROP:Disable} THEN SELF.SetItemEnabled(top, 0).
+    SELF.MirrorInto(sub, feq)
+    n += 1
+  END
+
+  IF hideOriginal AND n THEN mb{PROP:Hide} = 1.
+  SETTARGET()
+  RETURN n
+
+!  One level of a mirrored menu.  Assumes SETTARGET(SELF.Win) is active.
+CommandBarClass.MirrorInto PROCEDURE(SIGNED container, SIGNED menuFeq)
+n     SIGNED
+child SIGNED
+ty    SIGNED
+sub   SIGNED
+row   SIGNED
+txt   STRING(256)
+ky    LONG
+  CODE
+  LOOP n = 1 TO 512
+    child = menuFeq{PROP:Child, n}
+    IF ~child THEN BREAK.
+    ty  = child{PROP:Type}
+    txt = child{PROP:Text}
+
+    IF ty = CREATE:menu
+      sub = SELF.CreateMenu()
+      row = SELF.AddSubMenu(container, txt, sub)
+      IF row AND child{PROP:Disable} THEN SELF.SetItemEnabled(row, 0).
+      SELF.MirrorInto(sub, child)
+      CYCLE
+    END
+
+    IF ty <> CREATE:item THEN CYCLE.
+
+    IF ~txt                                        ! an ITEM with no text
+      SELF.AddSeparator(container)                 ! is a SEPARATOR
+      CYCLE
+    END
+
+    row = SELF.AddButton(container, SELF.MirrorBase + child, txt)
+    IF ~row THEN CYCLE.
+    ky = child{PROP:Key}
+    IF ky THEN SELF.SetItemShortcut(row, SELF.KeyText(ky)).
+    IF child{PROP:Disable} THEN SELF.SetItemEnabled(row, 0).
+    IF child{PROP:Checked} THEN SELF.SetItemChecked(row, 1).
+  END
+
+!  A Clarion KEYCODE as text.  The virtual key is the low byte and the
+!  modifiers are the high byte (1 = shift, 2 = ctrl, 4 = alt).
+CommandBarClass.KeyText PROCEDURE(LONG clarionKeyCode)
+vk   SIGNED
+cm   SIGNED
+res  STRING(40)
+nm   STRING(12)
+  CODE
+  IF ~clarionKeyCode THEN RETURN ''.
+  vk = BAND(clarionKeyCode, 0FFh)
+  cm = BAND(BSHIFT(clarionKeyCode, -8), 0FFh)
+  nm = ''
+  CASE vk
+  OF 8   ; nm = 'Backspace'
+  OF 9   ; nm = 'Tab'
+  OF 13  ; nm = 'Enter'
+  OF 27  ; nm = 'Esc'
+  OF 32  ; nm = 'Space'
+  OF 33  ; nm = 'PgUp'
+  OF 34  ; nm = 'PgDn'
+  OF 35  ; nm = 'End'
+  OF 36  ; nm = 'Home'
+  OF 37  ; nm = 'Left'
+  OF 38  ; nm = 'Up'
+  OF 39  ; nm = 'Right'
+  OF 40  ; nm = 'Down'
+  OF 45  ; nm = 'Ins'
+  OF 46  ; nm = 'Del'
+  ELSE
+    IF vk >= 112 AND vk <= 123
+      nm = 'F' & (vk - 111)
+    ELSIF (vk >= 48 AND vk <= 57) OR (vk >= 65 AND vk <= 90)
+      nm = CHR(vk)
+    END
+  END
+  IF ~nm THEN RETURN ''.
+  res = ''
+  IF BAND(cm, 2) THEN res = 'Ctrl+'.
+  IF BAND(cm, 4) THEN res = CLIP(res) & 'Alt+'.
+  IF BAND(cm, 1) THEN res = CLIP(res) & 'Shift+'.
+  RETURN CLIP(res) & CLIP(nm)
+
 !---------------------------------------------------------------------
 ! the event pump
 !---------------------------------------------------------------------
 CommandBarClass.TakeOne PROCEDURE()
-itm SIGNED
-cmd LONG
-evt SIGNED
-prm LONG
+itm   SIGNED
+cmd   LONG
+evt   SIGNED
+prm   LONG
+guard SIGNED
   CODE
   IF ~SELF.CB THEN RETURN 0.
-  itm = 0
-  cmd = 0
-  evt = 0
-  prm = 0
-  IF ~CB_PollEvent(SELF.CB, itm, cmd, evt, prm) THEN RETURN 0.
-  SELF.LastItem  = itm
-  SELF.LastCmd   = cmd
-  SELF.LastEvent = evt
-  SELF.LastParam = prm
-  RETURN 1
+  guard = 0
+  LOOP
+    guard += 1
+    IF guard > 2000 THEN RETURN 0.
+    itm = 0
+    cmd = 0
+    evt = 0
+    prm = 0
+    IF ~CB_PollEvent(SELF.CB, itm, cmd, evt, prm) THEN RETURN 0.
+    !  A row MirrorMenu built stands in for a real menu ITEM: hand the
+    !  click straight to that ITEM and keep the event to ourselves, so
+    !  the caller only ever sees its OWN commands.
+    IF SELF.MirrorBase > 0 AND evt = CBE:Command AND cmd >= SELF.MirrorBase
+      POST(EVENT:Accepted, cmd - SELF.MirrorBase)
+      CYCLE
+    END
+    SELF.LastItem  = itm
+    SELF.LastCmd   = cmd
+    SELF.LastEvent = evt
+    SELF.LastParam = prm
+    RETURN 1
+  END
 
 CommandBarClass.TakeEvent PROCEDURE()
 handled BYTE

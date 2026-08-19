@@ -783,6 +783,23 @@ void CBRelayout(CBManager* m)
   =====================================================================*/
 static const wchar_t* CBPROP = L"ClaCommandBar.Mgr";
 
+/* Clarion puts its menu back.  CB_SetHostMenuVisible(0) detaches it and
+   really does take effect - GetMenu() answers NULL straight afterwards -
+   but the runtime re-attaches it while the window finishes opening, and
+   the menu bar reappears above our mirrored one.  So the detach has to
+   be RE-ASSERTED: any time the frame is sized, activated or repainted
+   and the menu is back while we are meant to be holding it, take it off
+   again.  Cheap - GetMenu() is a lookup, and this only fires while a
+   mirrored bar is actually replacing the menu. */
+static void CBEnforceHostMenu(CBManager* m, HWND hwnd)
+{
+    if (!m->hostMenu || m->destroying) return;
+    if (!GetMenu(hwnd)) return;
+    SetMenu(hwnd, NULL);
+    DrawMenuBar(hwnd);
+    CBRelayout(m);
+}
+
 static LRESULT CALLBACK CBParentProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     CBManager* m = (CBManager*)GetPropW(hwnd, CBPROP);
@@ -791,9 +808,19 @@ static LRESULT CALLBACK CBParentProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
     switch (msg)
     {
+    case WM_NCPAINT:
+    case WM_NCACTIVATE:
+    case WM_ACTIVATE:
+    case WM_SETFOCUS:
+    {
+        LRESULT r = CallWindowProcW(old, hwnd, msg, wp, lp);
+        CBEnforceHostMenu(m, hwnd);
+        return r;
+    }
     case WM_SIZE:
     {
         LRESULT r = CallWindowProcW(old, hwnd, msg, wp, lp);
+        CBEnforceHostMenu(m, hwnd);
         CBRelayout(m);
         return r;
     }
@@ -941,6 +968,11 @@ void CBAPI CB_Destroy(HCB cb)
     CBEndEdit(m, false);
     CBCloseMenus(m);
 
+    if (m->hostMenu && IsWindow(m->parent))
+    {
+        SetMenu(m->parent, m->hostMenu);    /* leave the host as we found it */
+        m->hostMenu = NULL;
+    }
     if (m->oldParentProc && IsWindow(m->parent))
         SetWindowLongPtrW(m->parent, GWLP_WNDPROC, (LONG_PTR)m->oldParentProc);
     if (IsWindow(m->parent)) RemovePropW(m->parent, CBPROP);
@@ -2010,6 +2042,35 @@ void CBAPI CB_SetBarRect(HCB cb, int bar, int x, int y, int w, int h)
 /*=====================================================================
   Odds and ends
   =====================================================================*/
+void CBAPI CB_SetHostMenuVisible(HCB cb, int visible)
+{
+    CBManager* m = (CBManager*)cb;
+    if (!m || !IsWindow(m->parent)) return;
+
+    if (visible)
+    {
+        if (!m->hostMenu) return;
+        SetMenu(m->parent, m->hostMenu);
+        m->hostMenu = NULL;
+    }
+    else
+    {
+        HMENU h = GetMenu(m->parent);
+        if (!h) return;                 /* already off, or never had one */
+        m->hostMenu = h;
+        SetMenu(m->parent, NULL);
+    }
+    DrawMenuBar(m->parent);
+    CBRelayout(m);                      /* the client area just changed  */
+}
+
+int CBAPI CB_GetHostMenuVisible(HCB cb)
+{
+    CBManager* m = (CBManager*)cb;
+    if (!m || !IsWindow(m->parent)) return 0;
+    return m->hostMenu ? 0 : (GetMenu(m->parent) ? 1 : 0);
+}
+
 void CBAPI CB_GetCursorPos(int* x, int* y)
 {
     POINT p;

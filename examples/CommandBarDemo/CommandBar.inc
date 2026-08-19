@@ -65,6 +65,7 @@ CBD:Bottom      EQUATE(1)
 CBD:Left        EQUATE(2)
 CBD:Right       EQUATE(3)
 CBD:Float       EQUATE(4)
+CBD:Fixed       EQUATE(5)   ! you place it: SetBarRect / PlaceOnControl
 
 !---- bar style flags ------------------------------------------------
 CBBS:MenuBar    EQUATE(0001h)
@@ -73,6 +74,7 @@ CBBS:Floatable  EQUATE(0004h)
 CBBS:Locked     EQUATE(0008h)
 CBBS:NoBorder   EQUATE(0010h)
 CBBS:LargeIcons EQUATE(0020h)
+CBBS:Ribbon     EQUATE(0040h)   ! a ribbon: tabs of groups of items
 
 !---- manager style flags (Init) -------------------------------------
 CBS:Tooltips    EQUATE(0001h)
@@ -167,6 +169,7 @@ CBE:SelChanged   EQUATE(5)
 CBE:ColorChanged EQUATE(6)
 CBE:Layout       EQUATE(7)
 CBE:RightClick   EQUATE(8)
+CBE:TabChanged   EQUATE(9)   ! ribbon tab switched (LastParam = tab id)
 
 !---- accelerator modifier flags -------------------------------------
 ! NOTE these are NOT in the same bit order as a Clarion KEYCODE (which
@@ -184,6 +187,12 @@ Theme           SIGNED                      ! CBT: currently loaded
 Initialized     BYTE
 TimerInterval   SIGNED                      ! forced on the window (0 = leave alone)
 MenuBar         SIGNED                      ! bar id made by AddMenuBar, 0 = none
+!  MirrorMenu gives every mirrored row a command id of MirrorBase + the
+!  original ITEM's field equate, and TakeOne turns those back into a
+!  POST(EVENT:Accepted) on that ITEM and swallows them.  That is what
+!  makes mirroring transparent: all your existing menu embed code runs
+!  untouched.  Set it to 0 to see the raw command ids instead.
+MirrorBase      LONG
 !  The event most recently pulled off the queue.  Read these from your
 !  TakeCommand / TakeToggled override, or straight after TakeEvent().
 LastItem        SIGNED
@@ -230,6 +239,24 @@ BarDock         PROCEDURE(SIGNED bar),SIGNED
 SetBarVisible   PROCEDURE(SIGNED bar, BYTE visible=1)
 BarVisible      PROCEDURE(SIGNED bar),BYTE
 FloatBar        PROCEDURE(SIGNED bar, SIGNED x, SIGNED y)
+!  Place a bar yourself, in window PIXELS.  It then sits outside the
+!  dock arithmetic and takes nothing off the client area.
+SetBarRect      PROCEDURE(SIGNED bar, SIGNED x, SIGNED y, SIGNED width, SIGNED height)
+!  The same thing, but reading the rectangle off one of the window's own
+!  controls - drop a REGION where you want the bar and point this at it.
+!  The region is hidden by default; it goes on reporting its position, so
+!  the ABC resizer keeps moving the bar for you.
+PlaceOnControl  PROCEDURE(SIGNED bar, SIGNED feq, BYTE hideControl=1),VIRTUAL
+!-- ribbons.  A ribbon bar holds TABS, a tab holds GROUPS, and a group
+!-- holds ordinary items - AddButton and friends fill a group exactly as
+!-- they fill a toolbar.
+AddRibbon       PROCEDURE(STRING title, SIGNED dock=0),SIGNED,PROC
+AddRibbonTab    PROCEDURE(SIGNED bar, STRING text),SIGNED,PROC
+AddRibbonGroup  PROCEDURE(SIGNED tab, STRING text),SIGNED,PROC
+SetActiveTab    PROCEDURE(SIGNED bar, SIGNED tab)
+ActiveTab       PROCEDURE(SIGNED bar),SIGNED
+TabCount        PROCEDURE(SIGNED bar),SIGNED
+TabAt           PROCEDURE(SIGNED bar, SIGNED index),SIGNED   ! index is 0-based
 !  Both block until the user picks or cancels, and return the command
 !  id chosen (0 = cancelled).  The pick ALSO arrives through TakeEvent.
 TrackMenu       PROCEDURE(SIGNED menu, SIGNED x, SIGNED y),LONG,PROC
@@ -249,8 +276,20 @@ AddCombo        PROCEDURE(SIGNED container, LONG cmd, STRING pipeList, SIGNED wi
 AddCheckBox     PROCEDURE(SIGNED container, LONG cmd, STRING text, BYTE checked=0),SIGNED,PROC
 AddColorButton  PROCEDURE(SIGNED container, LONG cmd, STRING text, LONG color, SIGNED image=0),SIGNED,PROC
 AddMenuTitle    PROCEDURE(SIGNED bar, STRING text, SIGNED menu),SIGNED,PROC
+!-- Mirror the window's own MENUBAR onto a command bar: same order, same
+!-- nesting, same separators, shortcuts and disabled state.  Choosing a
+!-- mirrored row POSTs EVENT:Accepted to the original ITEM, so nothing
+!-- you already wrote has to change.  Returns the number of top-level
+!-- menus mirrored.  Call it AFTER the window is open.
+MirrorMenu      PROCEDURE(SIGNED bar, BYTE hideOriginal=1),SIGNED,PROC,VIRTUAL
+!-- 'Ctrl+N' for a Clarion KEYCODE - what MirrorMenu puts in the shortcut
+!-- column, and useful on its own.
+KeyText         PROCEDURE(LONG clarionKeyCode),STRING
 AddSubMenu      PROCEDURE(SIGNED container, STRING text, SIGNED menu, SIGNED image=0),SIGNED,PROC
 AddSpace        PROCEDURE(SIGNED container, SIGNED widthPx=0),SIGNED,PROC
+!  A large ribbon button: image over text, full group height.  Same as
+!  AddButton plus CBIS:TextBelow, which is what makes it the big one.
+AddLargeButton  PROCEDURE(SIGNED container, LONG cmd, STRING text, SIGNED image=0),SIGNED,PROC
 RemoveItem      PROCEDURE(SIGNED item)
 !-- item properties --
 SetItemText     PROCEDURE(SIGNED item, STRING text)
@@ -317,6 +356,8 @@ TakeRightClick  PROCEDURE(LONG cmd, SIGNED item),VIRTUAL
 !-- a pipe-delimited list helper, public because callers building
 !-- combo lists and menus keep needing it.  Item n, '' past the end.
 PipeItem        PROCEDURE(STRING list, SIGNED ordinal),STRING
+!-- recursive worker behind MirrorMenu
+MirrorInto      PROCEDURE(SIGNED container, SIGNED menuFeq),PRIVATE
               END
 
   _EndOfInclude_

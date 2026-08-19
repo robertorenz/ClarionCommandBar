@@ -306,6 +306,10 @@ struct CBManager
        host's.  CBQueue drops anything belonging to this container. */
     int            suppressContainer;
 
+    /* The host's own menu bar while it is detached (CB_SetHostMenuVisible).
+       Kept, never destroyed - the field equates behind it stay live. */
+    HMENU          hostMenu;
+
     /* dragging a floating bar by its caption */
     int            dragBar;
     POINT          dragOff;
@@ -324,7 +328,7 @@ struct CBManager
           dpiScale(1.0f), nextContainer(1), nextItem(1), proc(NULL),
           procUser(0), inLayout(false), destroying(false), tipWnd(NULL),
           tipRt(NULL), menuCancelled(false), menuResult(0), menuResultItem(0),
-          menuSwitchItem(0), suppressContainer(0),
+          menuSwitchItem(0), suppressContainer(0), hostMenu(NULL),
           dragBar(0), editWnd(NULL), editOldProc(NULL),
           editItem(0), editFont(NULL)
     {
