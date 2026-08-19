@@ -10,12 +10,14 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "commandbar.h"
 
 static HCB  g_cb   = NULL;
 static int  g_startTheme = 0;      /* testhost.exe 7  starts on theme 7 */
 static char g_last[256] = "Ready.";
 static int  g_barMain = 0, g_barMenu = 0, g_barSide = 0, g_barFmt = 0;
+static int  g_barRibbon = 0;
 static int  g_itemBold = 0, g_itemFont = 0, g_itemFind = 0, g_itemColor = 0;
 
 /* ---- command ids ---- */
@@ -231,6 +233,60 @@ static void BuildBars(HWND hwnd)
     CB_AddItem(g_cb, g_barFmt, CBI_BUTTON, 501, "Left", 0);
     CB_AddItem(g_cb, g_barFmt, CBI_BUTTON, 502, "Centre", 0);
     CB_AddItem(g_cb, g_barFmt, CBI_BUTTON, 503, "Right", 0);
+
+    /* ---------------- a ribbon: tabs of groups of items ---------------- */
+    g_barRibbon = CB_AddBar(g_cb, "Ribbon", CBD_TOP, CBBS_RIBBON);
+    CB_SetBarDock(g_cb, g_barRibbon, CBD_TOP, 3, 0);
+    {
+        int tHome, tInsert, tView, grp;
+
+        tHome = CB_AddRibbonTab(g_cb, g_barRibbon, "&Home");
+
+        grp = CB_AddRibbonGroup(g_cb, tHome, "Clipboard");
+        it = CB_AddItem(g_cb, grp, CBI_SPLIT, CMD_OPEN, "Paste", imgApp);
+        CB_SetItemStyle(g_cb, it, CBIS_TEXTBELOW);
+        CB_SetItemMenu(g_cb, it, mOpen);
+        CB_AddItem(g_cb, grp, CBI_BUTTON, CMD_CUT,   "Cut",   imgInfo);
+        CB_AddItem(g_cb, grp, CBI_BUTTON, CMD_COPY,  "Copy",  imgInfo);
+        CB_AddItem(g_cb, grp, CBI_BUTTON, CMD_PASTE, "Paste", imgInfo);
+
+        grp = CB_AddRibbonGroup(g_cb, tHome, "Font");
+        it = CB_AddItem(g_cb, grp, CBI_COMBO, CMD_FONT, "", 0);
+        CB_AddComboItem(g_cb, it, "Segoe UI");
+        CB_AddComboItem(g_cb, it, "Consolas");
+        CB_SetComboSel(g_cb, it, 0);
+        CB_SetItemWidth(g_cb, it, 120);
+        CB_AddItem(g_cb, grp, CBI_TOGGLE, CMD_BOLD,   "B", 0);
+        CB_AddItem(g_cb, grp, CBI_TOGGLE, CMD_ITALIC, "I", 0);
+        it = CB_AddItem(g_cb, grp, CBI_COLOR, CMD_COLOR, "", 0);
+        CB_SetItemColor(g_cb, it, RGB(32, 96, 176));
+
+        grp = CB_AddRibbonGroup(g_cb, tHome, "Editing");
+        it = CB_AddItem(g_cb, grp, CBI_BUTTON, CMD_FIND, "Find", imgQ);
+        CB_SetItemStyle(g_cb, it, CBIS_TEXTBELOW);
+        CB_AddItem(g_cb, grp, CBI_BUTTON, 0, "Replace", 0);
+        CB_AddItem(g_cb, grp, CBI_BUTTON, 0, "Select",  0);
+
+        tInsert = CB_AddRibbonTab(g_cb, g_barRibbon, "&Insert");
+        grp = CB_AddRibbonGroup(g_cb, tInsert, "Tables");
+        it = CB_AddItem(g_cb, grp, CBI_DROPDOWN, 0, "Table", imgApp);
+        CB_SetItemStyle(g_cb, it, CBIS_TEXTBELOW);
+        CB_SetItemMenu(g_cb, it, mOpen);
+        grp = CB_AddRibbonGroup(g_cb, tInsert, "Illustrations");
+        it = CB_AddItem(g_cb, grp, CBI_BUTTON, 0, "Picture", imgWarn);
+        CB_SetItemStyle(g_cb, it, CBIS_TEXTBELOW);
+        it = CB_AddItem(g_cb, grp, CBI_BUTTON, 0, "Chart", imgErr);
+        CB_SetItemStyle(g_cb, it, CBIS_TEXTBELOW);
+
+        tView = CB_AddRibbonTab(g_cb, g_barRibbon, "&View");
+        grp = CB_AddRibbonGroup(g_cb, tView, "Show");
+        CB_AddItem(g_cb, grp, CBI_CHECKBOX, 0, "Ruler",     0);
+        CB_AddItem(g_cb, grp, CBI_CHECKBOX, 0, "Gridlines", 0);
+        CB_AddItem(g_cb, grp, CBI_CHECKBOX, 0, "Nav pane",  0);
+        grp = CB_AddRibbonGroup(g_cb, tView, "Zoom");
+        it = CB_AddItem(g_cb, grp, CBI_BUTTON, 0, "Zoom", imgInfo);
+        CB_SetItemStyle(g_cb, it, CBIS_TEXTBELOW);
+    }
 
     /* ---------------- left-docked bar, large icons ---------------- */
     g_barSide = CB_AddBar(g_cb, "Tools", CBD_LEFT,

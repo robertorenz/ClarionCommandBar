@@ -232,6 +232,7 @@ static void LayoutBarVertical(CBManager* m, CBContainer* c, int availH)
         y += h + gap;
     }
 
+    c->laid     = c->items;
     c->measW    = barW;
     c->measH    = y - gap + padY;
     c->rowCount = 1;
@@ -241,11 +242,17 @@ static void LayoutBarVertical(CBManager* m, CBContainer* c, int availH)
 
 void CBLayoutBar(CBManager* m, CBContainer* c, int availW, int availH)
 {
+    if (c->style & CBBS_RIBBON)
+    {
+        CBLayoutRibbon(m, c, availW);
+        return;
+    }
     if (c->dock == CBD_LEFT || c->dock == CBD_RIGHT)
     {
         LayoutBarVertical(m, c, availH);
         return;
     }
+    c->laid = c->items;
 
     const int padX   = CBMetric(m, CBM_BARPADX);
     const int padY   = CBMetric(m, CBM_BARPADY);
@@ -532,9 +539,9 @@ int CBItemHitTest(CBManager* m, CBContainer* c, POINT pt, int* zone)
         if (zone) *zone = CBHIT_CHEVRON;
         return -1;
     }
-    for (size_t i = 0; i < c->items.size(); ++i)
+    for (size_t i = 0; i < c->laid.size(); ++i)
     {
-        CBItem* it = CBFindItem(m, c->items[i]);
+        CBItem* it = CBFindItem(m, c->laid[i]);
         if (!it || !it->visible || it->overflow) continue;
         if (it->type == CBI_SEPARATOR || it->type == CBI_SPACE) continue;
         if (!PtInRect(&it->rc, pt)) continue;
@@ -554,7 +561,7 @@ int CBItemHitTest(CBManager* m, CBContainer* c, POINT pt, int* zone)
   =====================================================================*/
 void CBEnsureBarWindow(CBManager* m, CBContainer* c)
 {
-    if (c->isMenu || c->hwnd) return;
+    if (c->kind != CBK_BAR || c->hwnd) return;
 
     DWORD style   = WS_CLIPSIBLINGS;
     DWORD exStyle = 0;
@@ -582,7 +589,7 @@ static void CollectSide(CBManager* m, int dock, std::vector<DockRowInfo>* out)
     for (i = m->containers.begin(); i != m->containers.end(); ++i)
     {
         CBContainer* c = i->second;
-        if (c->isMenu || !c->visible || c->dock != dock) continue;
+        if (c->kind != CBK_BAR || !c->visible || c->dock != dock) continue;
 
         size_t k = 0;
         for (; k < out->size(); ++k) if ((*out)[k].row == c->dockRow) break;
@@ -711,7 +718,7 @@ void CBRelayout(CBManager* m)
     for (i = m->containers.begin(); i != m->containers.end(); ++i)
     {
         CBContainer* c = i->second;
-        if (c->isMenu || c->dock != CBD_FLOAT) continue;
+        if (c->kind != CBK_BAR || c->dock != CBD_FLOAT) continue;
         if (!c->visible)
         {
             if (c->hwnd) ShowWindow(c->hwnd, SW_HIDE);
@@ -724,11 +731,36 @@ void CBRelayout(CBManager* m)
                      SWP_NOACTIVATE | SWP_SHOWWINDOW);
     }
 
+    /* Bars the caller placed itself.  They are deliberately OUTSIDE the
+       dock arithmetic above, so they take nothing off the client rect -
+       that is what lets the control template drop a bar exactly onto a
+       REGION the developer positioned on the window. */
+    for (i = m->containers.begin(); i != m->containers.end(); ++i)
+    {
+        CBContainer* c = i->second;
+        if (c->kind != CBK_BAR || c->dock != CBD_FIXED) continue;
+        if (!c->visible)
+        {
+            if (c->hwnd) ShowWindow(c->hwnd, SW_HIDE);
+            continue;
+        }
+        CBEnsureBarWindow(m, c);
+        int fw = c->fixedRc.right - c->fixedRc.left;
+        int fh = c->fixedRc.bottom - c->fixedRc.top;
+        if (fw < 1) fw = 1;
+        if (fh < 1) fh = 1;
+        CBLayoutBar(m, c, fw, fh);
+        if (c->measH > fh) fh = c->measH;      /* never clip a ribbon */
+        SetWindowPos(c->hwnd, HWND_TOP, c->fixedRc.left, c->fixedRc.top,
+                     fw, fh, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    }
+
     /* hidden docked bars */
     for (i = m->containers.begin(); i != m->containers.end(); ++i)
     {
         CBContainer* c = i->second;
-        if (c->isMenu || c->dock == CBD_FLOAT) continue;
+        if (c->kind != CBK_BAR || c->dock == CBD_FLOAT ||
+            c->dock == CBD_FIXED) continue;
         if (!c->visible && c->hwnd) ShowWindow(c->hwnd, SW_HIDE);
     }
 
@@ -738,7 +770,7 @@ void CBRelayout(CBManager* m)
     m->clientRc = nc;
 
     for (i = m->containers.begin(); i != m->containers.end(); ++i)
-        if (!i->second->isMenu && i->second->hwnd)
+        if (i->second->kind == CBK_BAR && i->second->hwnd)
             InvalidateRect(i->second->hwnd, NULL, FALSE);
 
     m->inLayout = false;
@@ -958,7 +990,7 @@ void CBAPI CB_Redraw(HCB cb)
     if (!m) return;
     std::map<int, CBContainer*>::iterator i;
     for (i = m->containers.begin(); i != m->containers.end(); ++i)
-        if (!i->second->isMenu && i->second->hwnd)
+        if (i->second->kind == CBK_BAR && i->second->hwnd)
             InvalidateRect(i->second->hwnd, NULL, FALSE);
 }
 
@@ -1096,7 +1128,7 @@ int CBAPI CB_AddBar(HCB cb, const char* title, int dock, unsigned long barStyle)
 
     CBContainer* c = new CBContainer();
     c->id      = m->nextContainer++;
-    c->isMenu  = false;
+    c->kind    = CBK_BAR;
     c->mgr     = m;
     c->title   = CBToWide(title);
     c->dock    = (dock < CBD_TOP || dock > CBD_FLOAT) ? CBD_TOP : dock;
@@ -1115,7 +1147,7 @@ int CBAPI CB_CreateMenu(HCB cb)
     if (!m) return 0;
     CBContainer* c = new CBContainer();
     c->id     = m->nextContainer++;
-    c->isMenu = true;
+    c->kind   = CBK_MENU;
     c->mgr    = m;
     m->containers[c->id] = c;
     return c->id;
@@ -1133,7 +1165,7 @@ void CBAPI CB_ClearContainer(HCB cb, int container)
     }
     c->items.clear();
     c->selIndex = -1;
-    if (!c->isMenu) CBRelayout(m);
+    if (c->kind != CBK_MENU) CBRelayout(m);
 }
 
 void CBAPI CB_DestroyContainer(HCB cb, int container)
@@ -1145,7 +1177,7 @@ void CBAPI CB_DestroyContainer(HCB cb, int container)
     CB_ClearContainer(cb, container);
     CBDiscardRT(c);
     if (c->hwnd) { DestroyWindow(c->hwnd); c->hwnd = NULL; }
-    bool wasBar = !c->isMenu;
+    bool wasBar = (c->kind != CBK_MENU);
     m->containers.erase(container);
     delete c;
     if (wasBar) CBRelayout(m);
@@ -1155,7 +1187,7 @@ void CBAPI CB_SetBarDock(HCB cb, int bar, int dock, int row, int offset)
 {
     CBManager* m = (CBManager*)cb;
     CBContainer* c = CBFindContainer(m, bar);
-    if (!c || c->isMenu) return;
+    if (!c || c->kind != CBK_BAR) return;
     if (dock < CBD_TOP || dock > CBD_FLOAT) dock = CBD_TOP;
 
     bool styleChange = ((c->dock == CBD_FLOAT) != (dock == CBD_FLOAT));
@@ -1177,14 +1209,14 @@ void CBAPI CB_SetBarDock(HCB cb, int bar, int dock, int row, int offset)
 int CBAPI CB_GetBarDock(HCB cb, int bar)
 {
     CBContainer* c = CBFindContainer((CBManager*)cb, bar);
-    return (c && !c->isMenu) ? c->dock : -1;
+    return (c && c->kind == CBK_BAR) ? c->dock : -1;
 }
 
 void CBAPI CB_SetBarVisible(HCB cb, int bar, int visible)
 {
     CBManager* m = (CBManager*)cb;
     CBContainer* c = CBFindContainer(m, bar);
-    if (!c || c->isMenu) return;
+    if (!c || c->kind != CBK_BAR) return;
     c->visible = (visible != 0);
     if (!c->visible && c->hwnd) ShowWindow(c->hwnd, SW_HIDE);
     CBRelayout(m);
@@ -1193,14 +1225,14 @@ void CBAPI CB_SetBarVisible(HCB cb, int bar, int visible)
 int CBAPI CB_GetBarVisible(HCB cb, int bar)
 {
     CBContainer* c = CBFindContainer((CBManager*)cb, bar);
-    return (c && !c->isMenu && c->visible) ? 1 : 0;
+    return (c && c->kind == CBK_BAR && c->visible) ? 1 : 0;
 }
 
 void CBAPI CB_FloatBar(HCB cb, int bar, int x, int y)
 {
     CBManager* m = (CBManager*)cb;
     CBContainer* c = CBFindContainer(m, bar);
-    if (!c || c->isMenu) return;
+    if (!c || c->kind != CBK_BAR) return;
     c->floatX = x;
     c->floatY = y;
     CB_SetBarDock(cb, bar, CBD_FLOAT, c->dockRow, c->dockOffset);
@@ -1210,7 +1242,7 @@ long CBAPI CB_TrackMenu(HCB cb, int menu, int x, int y)
 {
     CBManager* m = (CBManager*)cb;
     CBContainer* c = CBFindContainer(m, menu);
-    if (!c || !c->isMenu) return 0;
+    if (!c || c->kind != CBK_MENU) return 0;
     return CBTrackPopup(m, menu, x, y, 0, 0, NULL);
 }
 
@@ -1241,12 +1273,12 @@ static int AddItemImpl(CBManager* m, int container, int beforeItem, int type,
             if (c->items[i] == beforeItem)
             {
                 c->items.insert(c->items.begin() + i, it->id);
-                if (!c->isMenu) CBRelayout(m);
+                if (c->kind != CBK_MENU) CBRelayout(m);
                 return it->id;
             }
     }
     c->items.push_back(it->id);
-    if (!c->isMenu) CBRelayout(m);
+    if (c->kind != CBK_MENU) CBRelayout(m);
     return it->id;
 }
 
@@ -1273,7 +1305,7 @@ void CBAPI CB_RemoveItem(HCB cb, int item)
         for (size_t i = 0; i < c->items.size(); ++i)
             if (c->items[i] == item) { c->items.erase(c->items.begin() + i); break; }
     m->items.erase(item);
-    bool wasBar = c && !c->isMenu;
+    bool wasBar = c && c->kind != CBK_MENU;
     delete it;
     if (wasBar) CBRelayout(m);
 }
@@ -1284,7 +1316,7 @@ static void Touch(CBManager* m, CBItem* it, bool resize)
 {
     CBContainer* c = CBFindContainer(m, it->container);
     if (!c) return;
-    if (c->isMenu) return;
+    if (c->kind == CBK_MENU) return;
     if (resize) CBRelayout(m);
     else if (c->hwnd) InvalidateRect(c->hwnd, NULL, FALSE);
 }
@@ -1409,7 +1441,7 @@ void CBAPI CB_SetItemMenu(HCB cb, int item, int menu)
     CBItem* it = CBFindItem(m, item);
     if (!it) return;
     CBContainer* mc = CBFindContainer(m, menu);
-    it->menu = (menu > 0 && mc && mc->isMenu) ? menu : 0;
+    it->menu = (menu > 0 && mc && mc->kind == CBK_MENU) ? menu : 0;
     Touch(m, it, true);
 }
 
@@ -1610,7 +1642,7 @@ int CBAPI CB_TranslateKey(HCB cb, int key, int mods)
         for (ci = m->containers.begin(); ci != m->containers.end(); ++ci)
         {
             CBContainer* c = ci->second;
-            if (c->isMenu || !c->visible || !c->hwnd) continue;
+            if (c->kind != CBK_BAR || !c->visible || !c->hwnd) continue;
             for (size_t k = 0; k < c->items.size(); ++k)
             {
                 CBItem* it = CBFindItem(m, c->items[k]);
@@ -1655,6 +1687,324 @@ void CBAPI CB_SetCallback(HCB cb, CB_EVENTPROC proc, long userData)
     if (!m) return;
     m->proc     = proc;
     m->procUser = userData;
+}
+
+/*=====================================================================
+  Laying out a ribbon
+
+  A ribbon bar holds TAB containers; a tab holds GROUP containers; a
+  group holds ordinary items.  Only the ACTIVE tab is laid out - the
+  others cost nothing until they are selected.
+
+      +-------------------------------------------------+
+      | Home | Insert |                                 |   tab strip
+      +-------------------------------------------------+
+      | [ Paste ] | [B][I][U] | [ Find ]                |   content
+      | [ Cut   ] | [A][A][A] |                         |
+      | Clipboard |   Font    | Editing                 |   captions
+      +-------------------------------------------------+
+
+  An item marked CBIS_TEXTBELOW is LARGE: icon over text, full content
+  height.  Everything else is SMALL and stacks in up to three rows,
+  filling a column before starting the next - which is how every ribbon
+  lays a group out.
+  =====================================================================*/
+static int RibbonTabHeight(CBManager* m)
+{
+    return CBFontHeight(m, CBF_ITEM) + (int)(9 * m->dpiScale);
+}
+static int RibbonCaptionHeight(CBManager* m)
+{
+    return CBFontHeight(m, CBF_ITEM) + (int)(4 * m->dpiScale);
+}
+static int RibbonContentHeight(CBManager* m)
+{
+    int large = CBMetric(m, CBM_LARGEICON);
+    return large + CBFontHeight(m, CBF_ITEM) + (int)(12 * m->dpiScale);
+}
+
+void CBLayoutRibbon(CBManager* m, CBContainer* c, int availW)
+{
+    const int padX    = CBMetric(m, CBM_BARPADX);
+    const int padY    = CBMetric(m, CBM_BARPADY);
+    const int gap     = CBMetric(m, CBM_GAP);
+    const int tabH    = RibbonTabHeight(m);
+    const int capH    = RibbonCaptionHeight(m);
+    const int contH   = RibbonContentHeight(m);
+    const int smallIc = CBMetric(m, CBM_ICONSIZE);
+    const int largeIc = CBMetric(m, CBM_LARGEICON);
+    const int itemPad = CBMetric(m, CBM_PADX);
+
+    c->laid.clear();
+    c->hasChevron = false;
+    SetRectEmpty(&c->chevronRc);
+
+    /* ---- the tab strip ---- */
+    int x = padX + (int)(6 * m->dpiScale);
+    for (size_t t = 0; t < c->items.size(); ++t)
+    {
+        CBContainer* tab = CBFindContainer(m, c->items[t]);
+        if (!tab || tab->kind != CBK_TAB) continue;
+        float tw = 0;
+        CBMeasure(m, CBF_ITEM, false, tab->caption, &tw, NULL);
+        int w = (int)(tw + 0.5f) + 2 + 4 * itemPad;
+        tab->tabRc.left   = x;
+        tab->tabRc.right  = x + w;
+        tab->tabRc.top    = padY;
+        tab->tabRc.bottom = padY + tabH;
+        x += w;
+        if (!c->activeTab) c->activeTab = tab->id;
+    }
+
+    const int contentTop = padY + tabH;
+
+    /* ---- the active tab's groups ---- */
+    CBContainer* active = CBFindContainer(m, c->activeTab);
+    int gx = padX + (int)(4 * m->dpiScale);
+
+    if (active && active->kind == CBK_TAB)
+    {
+        for (size_t g = 0; g < active->items.size(); ++g)
+        {
+            CBContainer* grp = CBFindContainer(m, active->items[g]);
+            if (!grp || grp->kind != CBK_GROUP) continue;
+
+            int colX     = gx + itemPad;
+            int smallRow = contH / 3;
+            int rowInCol = 0;
+            int colW     = 0;
+            int startX   = colX;
+
+            for (size_t k = 0; k < grp->items.size(); ++k)
+            {
+                CBItem* it = CBFindItem(m, grp->items[k]);
+                if (!it) continue;
+                SetRectEmpty(&it->rc);
+                SetRectEmpty(&it->arrow);
+                it->overflow = false;
+                if (!it->visible) continue;
+
+                bool large = (it->style & CBIS_TEXTBELOW) != 0;
+                float tw = 0;
+                if (!it->text.empty() && !(it->style & CBIS_ICONONLY))
+                    CBMeasure(m, CBF_ITEM, false, it->text, &tw, NULL);
+                int textW = (int)(tw + 0.5f) + 2;
+
+                if (large)
+                {
+                    if (rowInCol) { colX += colW + gap; rowInCol = 0; colW = 0; }
+                    int w = (largeIc > textW ? largeIc : textW) + 2 * itemPad;
+                    /* A split or colour button is drawn as command-half +
+                       arrow-half, and the drawing code derives the content
+                       rect from arrow.left.  Leave the arrow rect empty and
+                       that content rect collapses to nothing, so the whole
+                       button disappears - reserve the zone here. */
+                    int arrowW = 0;
+                    if (it->type == CBI_SPLIT || it->type == CBI_COLOR)
+                        arrowW = (int)(16 * m->dpiScale);
+                    else if (it->type == CBI_DROPDOWN)
+                        arrowW = (int)(13 * m->dpiScale);
+                    w += arrowW;
+
+                    it->rc.left   = colX;
+                    it->rc.right  = colX + w;
+                    it->rc.top    = contentTop + padY;
+                    it->rc.bottom = contentTop + contH - padY;
+                    if (it->type == CBI_SPLIT || it->type == CBI_COLOR)
+                    {
+                        it->arrow = it->rc;
+                        it->arrow.left = it->rc.right - arrowW;
+                    }
+                    colX += w + gap;
+                    c->laid.push_back(it->id);
+                    continue;
+                }
+
+                if (it->type == CBI_SEPARATOR)
+                {
+                    if (rowInCol) { colX += colW + gap; rowInCol = 0; colW = 0; }
+                    it->rc.left   = colX;
+                    it->rc.right  = colX + CBMetric(m, CBM_SEPWIDTH);
+                    it->rc.top    = contentTop + padY;
+                    it->rc.bottom = contentTop + contH - padY;
+                    colX += (it->rc.right - it->rc.left) + gap;
+                    c->laid.push_back(it->id);
+                    continue;
+                }
+
+                int w = 2 * itemPad;
+                bool wantIcon = it->image > 0 && !(it->style & CBIS_TEXTONLY);
+                if (wantIcon) w += smallIc;
+                if (textW > 2 && !(it->style & CBIS_ICONONLY))
+                    w += (wantIcon ? (int)(4 * m->dpiScale) : 0) + textW;
+                if (it->type == CBI_DROPDOWN) w += (int)(12 * m->dpiScale);
+                if (it->type == CBI_SPLIT || it->type == CBI_COLOR)
+                    w += (int)(16 * m->dpiScale);
+                if (it->type == CBI_EDIT || it->type == CBI_COMBO)
+                    w = it->width > 0 ? (int)(it->width * m->dpiScale)
+                                      : (int)(110 * m->dpiScale);
+
+                if (rowInCol == 0) startX = colX;
+                it->rc.left   = startX;
+                it->rc.right  = startX + w;
+                it->rc.top    = contentTop + padY + rowInCol * smallRow;
+                it->rc.bottom = it->rc.top + smallRow - 1;
+                if (w > colW) colW = w;
+                if (it->type == CBI_SPLIT || it->type == CBI_COLOR)
+                {
+                    it->arrow = it->rc;
+                    it->arrow.left = it->rc.right - (int)(16 * m->dpiScale);
+                }
+                c->laid.push_back(it->id);
+
+                if (++rowInCol >= 3) { colX = startX + colW + gap; rowInCol = 0; colW = 0; }
+            }
+            if (rowInCol) colX = startX + colW + gap;
+
+            /* the group box has to be at least as wide as its caption */
+            float cw = 0;
+            CBMeasure(m, CBF_ITEM, false, grp->caption, &cw, NULL);
+            int need = (int)(cw + 0.5f) + 2 + 2 * itemPad;
+            int gw   = (colX - gx) + itemPad;
+            if (gw < need) gw = need;
+
+            grp->groupRc.left   = gx;
+            grp->groupRc.right  = gx + gw;
+            grp->groupRc.top    = contentTop;
+            grp->groupRc.bottom = contentTop + contH + capH;
+            gx += gw;
+        }
+    }
+
+    c->rowCount = 1;
+    c->measH    = contentTop + contH + capH + padY;
+    c->measW    = availW > 0 ? availW : gx + padX;
+}
+
+/* The tab under a point, or 0. */
+int CBTabHitTest(CBManager* m, CBContainer* c, POINT pt)
+{
+    if (!c || !(c->style & CBBS_RIBBON)) return 0;
+    for (size_t t = 0; t < c->items.size(); ++t)
+    {
+        CBContainer* tab = CBFindContainer(m, c->items[t]);
+        if (!tab || tab->kind != CBK_TAB) continue;
+        if (PtInRect(&tab->tabRc, pt)) return tab->id;
+    }
+    return 0;
+}
+
+/*=====================================================================
+  Ribbon API
+  =====================================================================*/
+int CBAPI CB_AddRibbonTab(HCB cb, int bar, const char* text)
+{
+    CBManager* m = (CBManager*)cb;
+    CBContainer* b = CBFindContainer(m, bar);
+    if (!b || b->kind != CBK_BAR) return 0;
+
+    CBContainer* t = new CBContainer();
+    t->id      = m->nextContainer++;
+    t->kind    = CBK_TAB;
+    t->mgr     = m;
+    t->owner   = bar;
+    t->caption = CBStripAmp(CBToWide(text), NULL);
+    m->containers[t->id] = t;
+
+    b->items.push_back(t->id);
+    if (!b->activeTab) b->activeTab = t->id;
+    b->style |= CBBS_RIBBON;
+    CBRelayout(m);
+    return t->id;
+}
+
+int CBAPI CB_AddRibbonGroup(HCB cb, int tab, const char* text)
+{
+    CBManager* m = (CBManager*)cb;
+    CBContainer* t = CBFindContainer(m, tab);
+    if (!t || t->kind != CBK_TAB) return 0;
+
+    CBContainer* g = new CBContainer();
+    g->id      = m->nextContainer++;
+    g->kind    = CBK_GROUP;
+    g->mgr     = m;
+    g->owner   = tab;
+    g->caption = CBStripAmp(CBToWide(text), NULL);
+    m->containers[g->id] = g;
+
+    t->items.push_back(g->id);
+    CBRelayout(m);
+    return g->id;
+}
+
+void CBAPI CB_SetActiveTab(HCB cb, int bar, int tab)
+{
+    CBManager* m = (CBManager*)cb;
+    CBContainer* b = CBFindContainer(m, bar);
+    if (!b || b->kind != CBK_BAR) return;
+    if (b->activeTab == tab) return;
+    b->activeTab = tab;
+    CBRelayout(m);
+    if (b->hwnd) InvalidateRect(b->hwnd, NULL, FALSE);
+    CBQueue(m, 0, 0, CBE_TABCHANGED, (long)tab);
+}
+
+int CBAPI CB_GetActiveTab(HCB cb, int bar)
+{
+    CBContainer* b = CBFindContainer((CBManager*)cb, bar);
+    return (b && b->kind == CBK_BAR) ? b->activeTab : 0;
+}
+
+int CBAPI CB_GetTabCount(HCB cb, int bar)
+{
+    CBManager* m = (CBManager*)cb;
+    CBContainer* b = CBFindContainer(m, bar);
+    if (!b || b->kind != CBK_BAR) return 0;
+    int n = 0;
+    for (size_t i = 0; i < b->items.size(); ++i)
+    {
+        CBContainer* t = CBFindContainer(m, b->items[i]);
+        if (t && t->kind == CBK_TAB) ++n;
+    }
+    return n;
+}
+
+int CBAPI CB_GetTabAt(HCB cb, int bar, int index)
+{
+    CBManager* m = (CBManager*)cb;
+    CBContainer* b = CBFindContainer(m, bar);
+    if (!b || b->kind != CBK_BAR || index < 0) return 0;
+    int n = 0;
+    for (size_t i = 0; i < b->items.size(); ++i)
+    {
+        CBContainer* t = CBFindContainer(m, b->items[i]);
+        if (t && t->kind == CBK_TAB && n++ == index) return t->id;
+    }
+    return 0;
+}
+
+void CBAPI CB_SetBarRect(HCB cb, int bar, int x, int y, int w, int h)
+{
+    CBManager* m = (CBManager*)cb;
+    CBContainer* c = CBFindContainer(m, bar);
+    if (!c || c->kind != CBK_BAR) return;
+    c->fixedRc.left   = x;
+    c->fixedRc.top    = y;
+    c->fixedRc.right  = x + w;
+    c->fixedRc.bottom = y + h;
+    if (c->dock != CBD_FIXED)
+    {
+        bool wasPopup = (c->dock == CBD_FLOAT);
+        c->dock = CBD_FIXED;
+        if (wasPopup && c->hwnd)          /* a popup cannot become a child */
+        {
+            CBDiscardRT(c);
+            DestroyWindow(c->hwnd);
+            c->hwnd = NULL;
+        }
+    }
+    CBEnsureBarWindow(m, c);
+    CBRelayout(m);
 }
 
 /*=====================================================================

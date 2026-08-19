@@ -81,3 +81,11 @@ EXPORTS
     CB_SetCallback       @68
 ;   ---- odds and ends ----
     CB_GetCursorPos      @69
+;   ---- v1.1: ribbons and caller-placed bars ----
+    CB_SetBarRect        @70
+    CB_AddRibbonTab      @71
+    CB_AddRibbonGroup    @72
+    CB_SetActiveTab      @73
+    CB_GetActiveTab      @74
+    CB_GetTabCount       @75
+    CB_GetTabAt          @76

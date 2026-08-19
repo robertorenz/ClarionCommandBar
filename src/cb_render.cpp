@@ -925,9 +925,13 @@ static void DrawBarItem(CBManager* m, CBContainer* c, CBItem* it)
     if (!it->visible || it->overflow) return;
     if (IsRectEmpty(&it->rc)) return;
 
-    const int  icon   = (c->style & CBBS_LARGEICONS)
-                            ? CBMetric(m, CBM_LARGEICON)
-                            : CBMetric(m, CBM_ICONSIZE);
+    /* On a ribbon the LARGE size is chosen per item, not per bar: an
+       image-over-text button is the big one and everything beside it in
+       the same group stays small. */
+    const bool bigItem = (c->style & CBBS_LARGEICONS) ||
+                         ((c->style & CBBS_RIBBON) && (it->style & CBIS_TEXTBELOW));
+    const int  icon   = bigItem ? CBMetric(m, CBM_LARGEICON)
+                                : CBMetric(m, CBM_ICONSIZE);
     const int  padX   = CBMetric(m, CBM_PADX);
     const bool vert   = (c->dock == CBD_LEFT || c->dock == CBD_RIGHT);
     const float radius= (float)CBMetric(m, CBM_CORNER);
@@ -1074,8 +1078,108 @@ static void DrawBarItem(CBManager* m, CBContainer* c, CBItem* it)
     }
 }
 
+/*=====================================================================
+  Painting a ribbon
+
+  Two surfaces: the tab strip keeps the bar background, and the content
+  panel below it is a lighter page that the ACTIVE tab is visually
+  joined to - which is the whole trick that makes a ribbon read as
+  tabbed pages rather than as a toolbar with buttons above it.
+  =====================================================================*/
+void CBPaintRibbon(CBManager* m, CBContainer* c)
+{
+    if (!CBEnsureRT(c)) return;
+
+    RECT rc;
+    GetClientRect(c->hwnd, &rc);
+
+    const int tabH  = CBFontHeight(m, CBF_ITEM) + (int)(9 * m->dpiScale);
+    const int padY  = CBMetric(m, CBM_BARPADY);
+    const int capH  = CBFontHeight(m, CBF_ITEM) + (int)(4 * m->dpiScale);
+    const float rad = (float)CBMetric(m, CBM_CORNER);
+
+    c->rt->BeginDraw();
+    PaintBarBackground(m, c, rc);
+
+    /* ---- the content page ---- */
+    RECT page = rc;
+    page.top = padY + tabH;
+    FillBox(c, page, m->col[CBC_MENUBACK], 0.0f);
+    HLine(c, page.left, page.right, page.top, m->col[CBC_BARBORDER]);
+    if (!(c->style & CBBS_NOBORDER))
+        HLine(c, rc.left, rc.right, rc.bottom - 1, m->col[CBC_BARBORDER]);
+
+    /* ---- the tab strip ---- */
+    for (size_t t = 0; t < c->items.size(); ++t)
+    {
+        CBContainer* tab = CBFindContainer(m, c->items[t]);
+        if (!tab || tab->kind != CBK_TAB) continue;
+        if (IsRectEmpty(&tab->tabRc)) continue;
+
+        bool active = (tab->id == c->activeTab);
+        bool hot    = (tab->id == c->hotTab) && !active;
+
+        RECT tr = tab->tabRc;
+        if (active)
+        {
+            /* joined to the page: fill down over the page's top line */
+            RECT fill = tr;
+            fill.bottom = page.top + 1;
+            FillBox(c, fill, m->col[CBC_MENUBACK], 0.0f);
+            VLine(c, fill.left,      fill.top + 1, fill.bottom, m->col[CBC_BARBORDER]);
+            VLine(c, fill.right - 1, fill.top + 1, fill.bottom, m->col[CBC_BARBORDER]);
+            HLine(c, fill.left, fill.right, fill.top, m->col[CBC_ACCENT]);
+        }
+        else if (hot)
+        {
+            RECT fill = tr;
+            InflateRect(&fill, -1, -1);
+            FillBox(c, fill, m->col[CBC_HOTBACK], rad);
+        }
+
+        DrawLine1(c, CBF_ITEM, active, tab->caption, -1, tr,
+                  active ? m->col[CBC_ITEMTEXT]
+                         : (hot ? m->col[CBC_ITEMTEXTHOT] : m->col[CBC_ITEMTEXT]),
+                  DWRITE_TEXT_ALIGNMENT_CENTER, true);
+    }
+
+    /* ---- the active tab's groups ---- */
+    CBContainer* active = CBFindContainer(m, c->activeTab);
+    if (active && active->kind == CBK_TAB)
+    {
+        for (size_t g = 0; g < active->items.size(); ++g)
+        {
+            CBContainer* grp = CBFindContainer(m, active->items[g]);
+            if (!grp || grp->kind != CBK_GROUP) continue;
+            if (IsRectEmpty(&grp->groupRc)) continue;
+
+            RECT cap = grp->groupRc;
+            cap.top    = cap.bottom - capH;
+            cap.bottom = grp->groupRc.bottom - 2;
+            DrawLine1(c, CBF_ITEM, false, grp->caption, -1, cap,
+                      m->col[CBC_MENUSHORTCUT], DWRITE_TEXT_ALIGNMENT_CENTER, true);
+
+            /* the divider between this group and the next */
+            VLine(c, grp->groupRc.right - 1,
+                  grp->groupRc.top + (int)(4 * m->dpiScale),
+                  grp->groupRc.bottom - capH,
+                  m->col[CBC_SEPARATOR]);
+        }
+    }
+
+    for (size_t i = 0; i < c->laid.size(); ++i)
+    {
+        CBItem* it = CBFindItem(m, c->laid[i]);
+        if (it) DrawBarItem(m, c, it);
+    }
+
+    HRESULT hr = c->rt->EndDraw();
+    if (hr == (HRESULT)D2DERR_RECREATE_TARGET) CBDiscardRT(c);
+}
+
 void CBPaintBar(CBManager* m, CBContainer* c)
 {
+    if (c->style & CBBS_RIBBON) { CBPaintRibbon(m, c); return; }
     if (!CBEnsureRT(c)) return;
 
     RECT rc;
@@ -1128,9 +1232,9 @@ void CBPaintBar(CBManager* m, CBContainer* c)
         DrawGripper(c, g, vert, m->col[CBC_GRIPPER]);
     }
 
-    for (size_t i = 0; i < c->items.size(); ++i)
+    for (size_t i = 0; i < c->laid.size(); ++i)
     {
-        CBItem* it = CBFindItem(m, c->items[i]);
+        CBItem* it = CBFindItem(m, c->laid[i]);
         if (it) DrawBarItem(m, c, it);
     }
 
@@ -1573,7 +1677,7 @@ static void OpenSubmenuAt(CBManager* m, size_t chainIdx, int rowIdx)
     CBItem* it = CBFindItem(m, parent->items[rowIdx]);
     if (!it || !it->menu || !it->enabled) return;
     CBContainer* sub = MenuOf(m, it->menu);
-    if (!sub || !sub->isMenu) return;
+    if (!sub || sub->kind != CBK_MENU) return;
 
     CBQueue(m, it->id, it->cmd, CBE_DROPDOWN, it->menu);
 
@@ -1620,7 +1724,7 @@ long CBTrackPopup(CBManager* m, int menu, int x, int y, int ownerItem,
                   int ownerBar, const RECT* exclude)
 {
     CBContainer* root = MenuOf(m, menu);
-    if (!root || !root->isMenu || root->items.empty()) return 0;
+    if (!root || root->kind != CBK_MENU || root->items.empty()) return 0;
 
     /* Let a callback host fill the menu before it is measured. */
     CBItem* owner = CBFindItem(m, ownerItem);
@@ -2147,6 +2251,16 @@ LRESULT CALLBACK CBBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         tme.dwHoverTime = 0;
         TrackMouseEvent(&tme);
 
+        if (c->style & CBBS_RIBBON)
+        {
+            int ht = CBTabHitTest(m, c, p);
+            if (ht != c->hotTab)
+            {
+                c->hotTab = ht;
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
+        }
+
         int zone = 0;
         int hit  = CBItemHitTest(m, c, p, &zone);
         if (hit != c->hotItem || zone != c->hotZone)
@@ -2169,6 +2283,7 @@ LRESULT CALLBACK CBBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     case WM_MOUSELEAVE:
         c->hotItem = 0;
         c->hotZone = CBHIT_NONE;
+        c->hotTab  = 0;
         KillTimer(hwnd, CBTIMER_TIPSHOW);
         CBHideTip(m);
         InvalidateRect(hwnd, NULL, FALSE);
@@ -2224,6 +2339,12 @@ LRESULT CALLBACK CBBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             m->dragOff.y = sp.y - wr.top;
             SetCapture(hwnd);
             return 0;
+        }
+
+        if (c->style & CBBS_RIBBON)
+        {
+            int ht = CBTabHitTest(m, c, p);
+            if (ht) { CB_SetActiveTab(m, c->id, ht); return 0; }
         }
 
         int zone = 0;

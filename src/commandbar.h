@@ -65,6 +65,7 @@ typedef void* HCB;          /* command-bar manager instance handle */
 #define CBD_LEFT        2
 #define CBD_RIGHT       3
 #define CBD_FLOAT       4
+#define CBD_FIXED       5   /* the caller places it: CB_SetBarRect      */
 
 /* ---- bar style flags (CB_AddBar) ---------------------------------- */
 #define CBBS_MENUBAR    0x0001  /* this bar is the menu bar           */
@@ -73,6 +74,7 @@ typedef void* HCB;          /* command-bar manager instance handle */
 #define CBBS_LOCKED     0x0008  /* no dragging at all                 */
 #define CBBS_NOBORDER   0x0010  /* no edge line                       */
 #define CBBS_LARGEICONS 0x0020  /* 32px images on this bar            */
+#define CBBS_RIBBON     0x0040  /* a ribbon: tabs of groups of items  */
 
 /* ---- manager style flags (CB_Create) ------------------------------ */
 #define CBS_TOOLTIPS    0x0001  /* show tooltips                      */
@@ -171,6 +173,7 @@ typedef void* HCB;          /* command-bar manager instance handle */
 #define CBE_LAYOUT       7  /* bars re-laid out: re-read the client   */
                             /* rect and move your own controls        */
 #define CBE_RCLICK       8  /* right button released on an item       */
+#define CBE_TABCHANGED   9  /* ribbon tab switched (param = tab id)    */
 
 /* ---- lifetime ----------------------------------------------------- */
 int   CBAPI CB_Initialize(void);            /* once per process       */
@@ -232,6 +235,32 @@ void  CBAPI CB_SetBarVisible(HCB cb, int bar, int visible);
 int   CBAPI CB_GetBarVisible(HCB cb, int bar);
 /* Float the bar at screen position x,y (dock becomes CBD_FLOAT).      */
 void  CBAPI CB_FloatBar(HCB cb, int bar, int x, int y);
+/* Place the bar yourself, in parent client pixels (dock becomes       */
+/* CBD_FIXED).  The dock arithmetic then ignores it entirely, so it    */
+/* takes no space off the client rect - this is how a bar dropped onto */
+/* a REGION by the control template lands exactly on that region.      */
+void  CBAPI CB_SetBarRect(HCB cb, int bar, int x, int y, int w, int h);
+
+/* ---- ribbons ------------------------------------------------------- */
+/* A ribbon is a bar with CBBS_RIBBON.  It holds TABS, a tab holds      */
+/* GROUPS, and a group holds ordinary items - so the same CB_AddItem    */
+/* fills a ribbon group as fills a toolbar.                             */
+/*                                                                      */
+/*   bar = CB_AddBar(cb, "Ribbon", CBD_TOP, CBBS_RIBBON);               */
+/*   tab = CB_AddRibbonTab(cb, bar, "&Home");                           */
+/*   grp = CB_AddRibbonGroup(cb, tab, "Clipboard");                     */
+/*   CB_AddItem(cb, grp, CBI_BUTTON, CMD_PASTE, "Paste", imgPaste);     */
+/*                                                                      */
+/* An item with CBIS_TEXTBELOW is drawn large and full height; the rest */
+/* stack in small rows, the way every ribbon does it.                   */
+int   CBAPI CB_AddRibbonTab(HCB cb, int bar, const char* text);
+int   CBAPI CB_AddRibbonGroup(HCB cb, int tab, const char* text);
+/* Which tab is showing.  0 selects none; the first tab is selected     */
+/* automatically when it is added.                                      */
+void  CBAPI CB_SetActiveTab(HCB cb, int bar, int tab);
+int   CBAPI CB_GetActiveTab(HCB cb, int bar);
+int   CBAPI CB_GetTabCount(HCB cb, int bar);
+int   CBAPI CB_GetTabAt(HCB cb, int bar, int index);      /* 0-based    */
 /* Pop a menu up at screen x,y - the classic context menu.  Blocks     */
 /* until the user picks or cancels; the choice ALSO arrives as a normal */
 /* CBE_COMMAND event, so either poll for it or use the return value.   */

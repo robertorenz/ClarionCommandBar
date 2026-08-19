@@ -50,6 +50,17 @@
 #define CBHIT_ARROW   2         /* the drop-arrow half of a SPLIT/COLOR */
 #define CBHIT_CHEVRON 3         /* the overflow chevron                 */
 
+/*---------------------------------------------------------------------
+  What a container IS.  Bars and menus were the whole story until
+  ribbons arrived; a ribbon needs two more, and they are containers
+  rather than item types so that CB_AddItem fills a ribbon group with
+  exactly the same call that fills a toolbar.
+  ---------------------------------------------------------------------*/
+#define CBK_BAR    0        /* a docked / floating strip               */
+#define CBK_MENU   1        /* a popup menu                            */
+#define CBK_TAB    2        /* one tab of a ribbon; holds groups       */
+#define CBK_GROUP  3        /* one group of a ribbon tab; holds items  */
+
 struct CBManager;
 
 /*---------------------------------------------------------------------
@@ -131,9 +142,12 @@ struct CBItem
 struct CBContainer
 {
     int               id;
-    bool              isMenu;
+    int               kind;      /* CBK_*                              */
     CBManager*        mgr;
-    std::vector<int>  items;
+    std::vector<int>  items;     /* items, or - for a ribbon bar/tab -
+                                    the ids of its tabs / groups       */
+    int               owner;     /* the bar a tab belongs to, or the
+                                    tab a group belongs to             */
 
     /* ---- bar ---- */
     std::wstring      title;
@@ -143,6 +157,7 @@ struct CBContainer
     unsigned long     style;       /* CBBS_*                           */
     bool              visible;
     int               floatX, floatY;
+    RECT              fixedRc;    /* CBD_FIXED placement, client px    */
 
     /* ---- the window, and its device-dependent resources ---- */
     HWND                      hwnd;
@@ -152,6 +167,10 @@ struct CBContainer
     int                       bmpSize;/* the px size bmp[] was built for */
 
     /* ---- layout results ---- */
+    /* The item ids actually laid out on this bar.  For a plain bar that
+       is just `items`; for a RIBBON it is the active tab's group items,
+       so hit-testing and painting can walk one list either way. */
+    std::vector<int>  laid;
     int   measW, measH;    /* natural size in px                        */
     int   rowCount;
     RECT  chevronRc;
@@ -168,20 +187,31 @@ struct CBContainer
 
     /* ---- menu-only ---- */
     int   ownerItem;       /* the item this popup hangs off             */
+
+    /* ---- ribbon ---- */
+    int   activeTab;       /* on a ribbon bar: the tab on show          */
+    int   hotTab;          /* tab strip hot-tracking                    */
+    RECT  tabRc;           /* on a tab: its rect in the strip           */
+    RECT  groupRc;         /* on a group: its whole box                 */
+    std::wstring caption;  /* tab / group caption                       */
     int   selIndex;        /* keyboard selection, -1 none               */
     int   gutterW;
     int   shortcutW;
 
     CBContainer()
-        : id(0), isMenu(false), mgr(NULL), dock(CBD_TOP), dockRow(0),
+        : id(0), kind(CBK_BAR), mgr(NULL), owner(0), dock(CBD_TOP), dockRow(0),
           dockOffset(0), style(0), visible(true), floatX(100), floatY(100),
           hwnd(NULL), rt(NULL), brush(NULL), bmpSize(0),
           measW(0), measH(0), rowCount(1),
           hasChevron(false), chevronMenu(0), hotItem(0), hotZone(CBHIT_NONE),
           pressItem(0), pressZone(CBHIT_NONE), openItem(0), tipItem(0),
-          ownerItem(0), selIndex(-1), gutterW(0), shortcutW(0)
+          ownerItem(0), selIndex(-1), gutterW(0), shortcutW(0),
+          activeTab(0), hotTab(0)
     {
         SetRectEmpty(&chevronRc);
+        SetRectEmpty(&tabRc);
+        SetRectEmpty(&groupRc);
+        SetRectEmpty(&fixedRc);
     }
 };
 
@@ -362,6 +392,10 @@ void           CBMeasureItem(CBManager* m, CBContainer* c, CBItem* it,
 void           CBLayoutBar(CBManager* m, CBContainer* c, int availW,
                            int availH);
 void           CBLayoutMenu(CBManager* m, CBContainer* c);
+void           CBLayoutRibbon(CBManager* m, CBContainer* c, int availW);
+void           CBPaintRibbon(CBManager* m, CBContainer* c);
+/* Hit test a ribbon's tab strip: the tab container id, or 0. */
+int            CBTabHitTest(CBManager* m, CBContainer* c, POINT pt);
 void           CBRelayout(CBManager* m);
 void           CBQueue(CBManager* m, int item, long cmd, int type, long param);
 CBItem*        CBFindItem(CBManager* m, int id);
