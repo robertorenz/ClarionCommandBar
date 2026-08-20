@@ -323,6 +323,9 @@ CMD:Copy   EQUATE(103)
 CMD:Bold   EQUATE(110)
 CMD:Ital   EQUATE(111)
 CMD:Find   EQUATE(120)
+CMD:Style  EQUATE(130)
+CMD:Zoom   EQUATE(131)
+CMD:Step   EQUATE(132)
 CMD:Theme  EQUATE(300)
 
 CB       CommandBarClass
@@ -330,6 +333,10 @@ ribbon   SIGNED
 tHome    SIGNED
 tInsert  SIGNED
 tView    SIGNED
+gStyle   SIGNED
+iZoom    SIGNED
+iStep    SIGNED
+iBusy    SIGNED
 grp      SIGNED
 it       SIGNED
 i        SIGNED
@@ -389,6 +396,19 @@ Window WINDOW('Ribbon - tabs of groups of items'),AT(,,640,300),GRAY,SYSTEM,MAX,
   CB.AddToggle(grp, CMD:Ital, 'I', 0)
   CB.AddColorButton(grp, 0, '', COLOR:Navy)
 
+  !  A GALLERY: a grid of picture choices, which is what a ribbon group
+  !  wants when a row of buttons will not do.  Clicking a cell selects it
+  !  and raises the item's command with the cell number in LastParam.
+  !  Only the cells that FIT are drawn, so the cell height is chosen to
+  !  suit the group rather than the other way round.
+  grp = CB.AddRibbonGroup(tHome, 'Styles')
+  gStyle = CB.AddGallery(grp, CMD:Style, 4, 62, 54)
+  CB.AddGalleryCell(gStyle, iNew,   'Normal')
+  CB.AddGalleryCell(gStyle, iOpen,  'Heading')
+  CB.AddGalleryCell(gStyle, iSave,  'Title')
+  CB.AddGalleryCell(gStyle, iPrint, 'Quote')
+  CB.SetGallerySel(gStyle, 0)
+
   grp = CB.AddRibbonGroup(tHome, 'Editing')
   CB.AddLargeButton(grp, CMD:Find, 'Find', iFind)
   CB.AddButton(grp, 0, 'Replace', 0)
@@ -413,14 +433,24 @@ Window WINDOW('Ribbon - tabs of groups of items'),AT(,,640,300),GRAY,SYSTEM,MAX,
   CB.AddCheckBox(grp, 0, 'Ruler', 1)
   CB.AddCheckBox(grp, 0, 'Gridlines')
   CB.AddCheckBox(grp, 0, 'Navigation pane')
+  !  A SLIDER, a SPIN BOX and a PROGRESS BAR - one idea wearing three
+  !  faces, a value between two bounds.  The first two raise
+  !  CBE:ValueChanged as the user moves them, with the new value in
+  !  LastParam; the progress bar raises nothing and is ours to drive.
+  grp = CB.AddRibbonGroup(tView, 'Zoom')
+  iZoom = CB.AddSlider(grp, CMD:Zoom, 25, 400, 100, 120)
+  iStep = CB.AddSpin(grp, CMD:Step, 1, 99, 10, 60)
+  iBusy = CB.AddProgress(grp, 0, 100, 35, 120)
+
   grp = CB.AddRibbonGroup(tView, 'Theme')
   it = CB.AddCombo(grp, CMD:Theme, ThemeNames, 140)
   CB.SetComboSel(it, 5)                          ! Office 2016
   CB.AddLargeButton(grp, 0, 'Zoom', iFind)
 
   CB.Layout()
-  Msg = 'Click the tabs.  Double-click a tab to collapse the ribbon.  ' & |
-        'View > Theme changes the palette live.'
+  Msg = 'Home > Styles is a GALLERY.  View > Zoom has a slider, a spin ' & |
+        'box and a progress bar.  The chevron at the end of the tab strip ' & |
+        'collapses the ribbon.'
   DISPLAY
 
   ACCEPT
@@ -433,8 +463,21 @@ Window WINDOW('Ribbon - tabs of groups of items'),AT(,,640,300),GRAY,SYSTEM,MAX,
             CB.SetTheme(CB.LastParam + 1)
             Msg = 'Theme = ' & CLIP(CB.PipeItem(ThemeNames, CB.LastParam + 1))
           END
+        OF CBE:ValueChanged
+          !  a drag raises this on EVERY step, so it has to stay cheap
+          CASE CB.LastCmd
+          OF CMD:Zoom
+            Msg = 'Zoom ' & CB.LastParam & '%  -  and the progress bar follows it.'
+            CB.SetItemNumber(iBusy, (CB.LastParam - 25) * 100 / 375)
+          OF CMD:Step
+            Msg = 'Step ' & CB.LastParam
+          END
         OF CBE:Command
-          Msg = 'Command ' & CB.LastCmd & ' from a ribbon item.'
+          IF CB.LastCmd = CMD:Style
+            Msg = 'Gallery cell ' & CB.LastParam & ' chosen (0 is the first).'
+          ELSE
+            Msg = 'Command ' & CB.LastCmd & ' from a ribbon item.'
+          END
         OF CBE:Toggled
           Msg = 'Toggle ' & CB.LastCmd & ' is now ' &                    |
                 CHOOSE(CB.LastParam = 1, 'ON', 'OFF')
