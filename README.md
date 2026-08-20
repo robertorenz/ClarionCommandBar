@@ -59,18 +59,27 @@ floating one sits and whether a ribbon is collapsed — matched back by name, so
 adding or removing a bar in a later release never hands an old position to the
 wrong one.
 
-## The reference guide
+## The documentation
 
-`docs/reference.html` is the **Programmer's Guide** — the guide and the
-reference in one, with a worked line of Clarion against every property and
-every method — the C API with its pinned
-ordinals, all 125 class methods, the four templates tab by tab, the equate
-tables and a set of recipes. The API tables are **generated from the sources**
-by `docs/build-reference.py`, so they cannot drift from the build:
+Four volumes in `docs/`, each linking to the others:
+
+| Volume | What it is |
+|--------|------------|
+| **1. Getting Started** | `getting-started.html` — install it, put a bar on screen by hand, then the same thing from AppGen in four steps |
+| **2. Programmer's Guide** | `programmers-guide.html` — the concepts, the how-to, and why Clarion behaves as it does when it surprises you |
+| **3. Template Guide** | `template-guide.html` — every template, tab, prompt, preset and embed point, and what the generator writes |
+| **4. Reference** | `reference.html` — every property, method, export and equate, each with a worked line of Clarion |
+
+The reference volume is **generated from the sources** — `commandbar.h`,
+`commandbar.def` and `CommandBar.inc` — so a signature or an ordinal in it is
+the one in the build. Rebuild all four after changing the API:
 
 ```
-python docsuild-reference.py     # re-reads commandbar.h/.def and CommandBar.inc
+python docsuild-docs.py
 ```
+
+It reports any class member that has no worked example, so the guide cannot
+quietly fall behind the class.
 
 ## What you get
 

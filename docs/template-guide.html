@@ -1,0 +1,226 @@
+<title>ClaCommandBar Template Guide</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@400;600&display=swap">
+<style>
+:root{
+  --paper:#fbfcfd; --surface:#f1f5f9; --sunken:#e9eff5; --rule:#d6e0ea;
+  --ink:#0f1720; --soft:#4e5f70; --faint:#7d8ea0;
+  --accent:#2f6a9a; --accent-bg:#e4eef6; --accent-rule:#b9d3e6;
+  --clarion:#166f69; --clarion-bg:#e2f1ef;
+  --warn:#8a5a12; --warn-bg:#f7eeda;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0d131a; --surface:#151d26; --sunken:#111922; --rule:#25313d;
+    --ink:#e2eaf2; --soft:#9aabbc; --faint:#6f8092;
+    --accent:#6fadde; --accent-bg:#152738; --accent-rule:#28455f;
+    --clarion:#4fb5ab; --clarion-bg:#102a29;
+    --warn:#d8a545; --warn-bg:#2b2413;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0d131a; --surface:#151d26; --sunken:#111922; --rule:#25313d;
+  --ink:#e2eaf2; --soft:#9aabbc; --faint:#6f8092;
+  --accent:#6fadde; --accent-bg:#152738; --accent-rule:#28455f;
+  --clarion:#4fb5ab; --clarion-bg:#102a29;
+  --warn:#d8a545; --warn-bg:#2b2413;
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--paper); color:var(--ink);
+  font-family:"IBM Plex Serif",Georgia,serif; font-size:16px; line-height:1.62;
+  -webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,.ui{font-family:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif}
+code,pre,.mono{font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace}
+a{color:var(--accent)}
+.wrap{display:grid; grid-template-columns:270px minmax(0,1fr); align-items:start}
+.side{position:sticky; top:0; height:100vh; overflow-y:auto; padding:24px 20px 60px;
+  border-right:1px solid var(--rule); background:var(--surface)}
+.brand{font-family:"IBM Plex Sans",sans-serif; font-weight:600; font-size:15px; margin:0 0 14px}
+.brand b{color:var(--accent)}
+/* ---- the four volumes ---- */
+.vols{list-style:none; margin:0 0 18px; padding:0; display:flex; flex-direction:column; gap:3px;
+  border-bottom:1px solid var(--rule); padding-bottom:16px}
+.vols a{display:block; padding:7px 10px; border-radius:6px; text-decoration:none;
+  font:500 13px/1.35 "IBM Plex Sans",sans-serif; color:var(--soft); border:1px solid transparent}
+.vols a:hover{background:var(--sunken); color:var(--ink)}
+.vols a.here{background:var(--accent-bg); border-color:var(--accent-rule); color:var(--accent)}
+.vols small{display:block; font:400 11px/1.35 "IBM Plex Sans",sans-serif; color:var(--faint);
+  margin-top:2px}
+.vols a.here small{color:var(--accent)}
+.filter{width:100%; margin:0 0 16px; padding:7px 10px; font:13px/1.4 "IBM Plex Sans",sans-serif;
+  color:var(--ink); background:var(--paper); border:1px solid var(--rule); border-radius:6px}
+.filter:focus{outline:2px solid var(--accent); outline-offset:1px}
+.nav__g{font:600 10.5px/1 "IBM Plex Sans",sans-serif; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--faint); margin:18px 0 8px}
+.nav__l{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px}
+.nav__l a{display:block; padding:4px 8px; border-radius:5px; text-decoration:none; color:var(--soft);
+  font:400 13.5px/1.45 "IBM Plex Sans",sans-serif}
+.nav__l a:hover{background:var(--sunken); color:var(--ink)}
+.nav__l a.on{background:var(--accent-bg); color:var(--accent); font-weight:500}
+.main{padding:0 0 120px; min-width:0}
+.inner{max-width:980px; padding:0 40px}
+.hero{padding:52px 40px 30px; border-bottom:1px solid var(--rule);
+  background:linear-gradient(180deg,var(--accent-bg),transparent)}
+.hero .inner{padding:0}
+.eyebrow{font:600 11px/1 "IBM Plex Sans",sans-serif; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--accent); margin:0 0 12px}
+h1{font-size:37px; line-height:1.1; margin:0 0 10px; letter-spacing:-.015em; text-wrap:balance}
+.sub{font-size:17px; color:var(--soft); margin:0 0 18px; max-width:62ch}
+.chips{display:flex; flex-wrap:wrap; gap:8px}
+.chip{font:500 11.5px/1 "IBM Plex Sans",sans-serif; padding:6px 10px; border-radius:99px;
+  border:1px solid var(--rule); background:var(--paper); color:var(--soft)}
+.chip b{color:var(--ink); font-weight:600}
+h2{font-size:26px; margin:60px 0 6px; letter-spacing:-.01em; scroll-margin-top:18px; text-wrap:balance}
+h2 .k{font:600 10.5px/1 "IBM Plex Sans",sans-serif; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--accent); display:block; margin-bottom:9px}
+h3{font-size:17.5px; margin:36px 0 10px; scroll-margin-top:18px}
+h4{font-size:14.5px; margin:24px 0 6px; color:var(--soft); font-weight:600}
+p{margin:0 0 14px; max-width:70ch}
+.lead{color:var(--soft); max-width:70ch}
+ul.b,ol.b{max-width:70ch; padding-left:20px; margin:0 0 16px}
+ul.b li,ol.b li{margin:0 0 7px}
+.code{background:var(--sunken); border:1px solid var(--rule); border-left:3px solid var(--accent-rule);
+  border-radius:0 7px 7px 0; padding:14px 16px; overflow-x:auto; margin:0 0 18px;
+  font-size:12.9px; line-height:1.62; position:relative}
+.code code{white-space:pre; color:var(--ink)}
+.code::after{content:attr(data-lang); position:absolute; top:0; right:0; padding:3px 9px;
+  font:500 9.5px/1 "IBM Plex Sans",sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--faint); background:var(--surface); border-left:1px solid var(--rule);
+  border-bottom:1px solid var(--rule); border-radius:0 0 0 6px}
+.code--use{margin:7px 0 2px; border-left-color:var(--clarion); background:var(--paper);
+  font-size:12.4px; padding:9px 12px}
+.code--use::after{content:'Clarion'; color:var(--clarion)}
+p code,li code,td code{background:var(--sunken); border:1px solid var(--rule); border-radius:4px;
+  padding:.06em .34em; font-size:.86em}
+.tw{overflow-x:auto; margin:0 0 20px; border:1px solid var(--rule); border-radius:8px;
+  background:var(--paper)}
+table{border-collapse:collapse; width:100%; font-size:13.5px;
+  font-family:"IBM Plex Sans",sans-serif}
+th{text-align:left; font-weight:600; font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--faint); padding:9px 14px; border-bottom:1px solid var(--rule); background:var(--surface)}
+td{padding:10px 14px; border-bottom:1px solid var(--rule); vertical-align:top}
+tr:last-child td{border-bottom:0}
+.fns .fn__n{width:210px; white-space:nowrap}
+.fns .fn__n code{font-size:12.6px; color:var(--accent); font-weight:500; background:none;
+  border:0; padding:0}
+.fns .fn__s code{font-size:12.4px; color:var(--soft); background:none; border:0; padding:0;
+  white-space:pre-wrap}
+.fn__d{margin:5px 0 0; font-family:"IBM Plex Serif",serif; font-size:13.5px; color:var(--ink);
+  max-width:74ch}
+.ord{margin-left:7px; font:500 10px/1 "IBM Plex Mono",monospace; color:var(--faint);
+  border:1px solid var(--rule); border-radius:4px; padding:2px 4px; vertical-align:1px}
+.eq td:first-child code{color:var(--accent); background:none; border:0; padding:0}
+.eq .v{font-variant-numeric:tabular-nums; color:var(--soft)}
+.note{border:1px solid var(--rule); border-left:3px solid var(--accent); background:var(--surface);
+  border-radius:0 7px 7px 0; padding:13px 16px; margin:0 0 18px; max-width:74ch}
+.note--warn{border-left-color:var(--warn); background:var(--warn-bg)}
+.note--cla{border-left-color:var(--clarion); background:var(--clarion-bg)}
+.note__t{font:600 12px/1.3 "IBM Plex Sans",sans-serif; letter-spacing:.03em; margin:0 0 5px;
+  text-transform:uppercase; color:var(--soft)}
+.note--warn .note__t{color:var(--warn)} .note--cla .note__t{color:var(--clarion)}
+.note__b p{margin:0 0 8px; font-size:14.5px} .note__b p:last-child{margin:0}
+.stack{display:flex; flex-direction:column; gap:9px; margin:0 0 22px; max-width:640px}
+.layer{border:1px solid var(--rule); border-radius:8px; padding:12px 15px; background:var(--surface);
+  display:grid; grid-template-columns:118px 1fr; gap:14px; align-items:baseline}
+.layer b{font:600 11px/1.4 "IBM Plex Sans",sans-serif; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--accent)}
+.layer.cla b{color:var(--clarion)}
+.layer p{margin:0; font-size:14px; color:var(--soft); max-width:none}
+.arrow{text-align:center; color:var(--faint); font-size:12px; margin:-4px 0}
+/* ---- where to next ---- */
+.next{display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px;
+  margin:26px 0 0}
+.next a{display:block; padding:14px 16px; border:1px solid var(--rule); border-radius:9px;
+  background:var(--surface); text-decoration:none}
+.next a:hover{border-color:var(--accent-rule); background:var(--accent-bg)}
+.next b{display:block; font:600 14px/1.3 "IBM Plex Sans",sans-serif; color:var(--accent);
+  margin-bottom:3px}
+.next span{font:400 13px/1.45 "IBM Plex Serif",serif; color:var(--soft)}
+.hide{display:none !important}
+footer{margin-top:70px; padding:22px 40px 0; border-top:1px solid var(--rule); color:var(--faint);
+  font:400 13px/1.6 "IBM Plex Sans",sans-serif}
+@media (max-width:900px){
+  .wrap{grid-template-columns:1fr}
+  .side{position:static; height:auto; border-right:0; border-bottom:1px solid var(--rule)}
+  .inner,.hero{padding-left:22px; padding-right:22px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none !important; transition:none !important}}
+</style>
+<div class="wrap">
+<nav class="side">
+  <p class="brand"><b>ClaCommandBar</b></p>
+<ul class="vols"><li><a href="https://claude.ai/code/artifact/9f7423f8-9a58-4c90-83fb-bc902fce7cfc">1. Getting Started<small>Install it and get a bar on screen</small></a></li><li><a href="https://claude.ai/code/artifact/7f6f84a6-3bea-4d92-948c-480f3d6a583d">2. Programmer&#x27;s Guide<small>How it works, and how to make it do things</small></a></li><li><a href="#" class="here">3. Template Guide<small>Every template, tab, prompt and embed</small></a></li><li><a href="https://claude.ai/code/artifact/bfef6768-0e5d-45e6-9a8e-9f053eb6dbbb">4. Reference<small>The class, the DLL and the equates</small></a></li></ul><p class="nav__g">This volume</p><ul class="nav__l"><li><a href="#four">The four templates</a></li><li><a href="#tabs">The tabs</a></li><li><a href="#presets">Presets</a></li><li><a href="#items">The Items dialog</a></li><li><a href="#embeds">Embed points</a></li><li><a href="#generated">What gets generated</a></li><li><a href="#next3">Where to go next</a></li></ul>
+</nav>
+<main class="main">
+  <header class="hero"><div class="inner">
+    <p class="eyebrow">Volume 3</p>
+    <h1>Template Guide</h1>
+    <p class="sub">The four templates, every tab and prompt, the presets, the embed points, and what the generator actually writes into your procedure.</p>
+    <div class="chips"><span class="chip"><b>4</b> templates</span><span class="chip"><b>10</b> tabs</span><span class="chip"><b>10</b> embed points</span><span class="chip"><b>11</b> presets</span></div>
+  </div></header>
+  <div class="inner"><h2 id="four"><span class="k">Templates</span>The four templates</h2><div class="tw"><table class=""><thead><tr><th>Template</th><th>Kind</th><th>Put it on</th><th>What it adds</th></tr></thead><tbody><tr><td><code>CommandBarGlobal</code></td><td>Extension</td><td>the application, once</td><td>defaults every window inherits &mdash; theme, colours, icon sizes</td></tr><tr><td><code>CommandBarOnWindow</code></td><td>Extension</td><td>any procedure with a window</td><td>bars, ribbons, menus and items on that window</td></tr><tr><td><code>CommandBarFrame</code></td><td>Extension</td><td>an <code>APPLICATION</code> frame</td><td>everything above, plus mirroring the frame's <code>MENUBAR</code> and <code>TOOLBAR</code></td></tr><tr><td><code>CommandBarControl</code></td><td>Control</td><td>a window, from the toolbox</td><td>drops a <code>REGION</code> and lands a bar exactly on it</td></tr></tbody></table></div><p>They share their tabs, so everything below applies wherever you find it. Only the frame
+template has <b>Menu and toolbar</b>; only the control template can land a bar on its own region.</p><h2 id="tabs"><span class="k">Templates</span>The tabs</h2><div class="tw"><table class=""><thead><tr><th>Tab</th><th>What lives there</th></tr></thead><tbody><tr><td><b>General</b></td><td>whether to build at all, the timer interval, which control fills the space the bars leave, and <i>Remember where the user puts the bars</i></td></tr><tr><td><b>Menu and toolbar</b></td><td><i>frame only</i> &mdash; mirror the <code>MENUBAR</code>, mirror the <code>TOOLBAR</code>, and whether to take each original off the frame</td></tr><tr><td><b>Appearance</b></td><td>theme, small and large icon sizes, item height, corner radius, menu width</td></tr><tr><td><b>Colours</b></td><td>override any of the 38 slots on top of the theme</td></tr><tr><td><b>Images</b></td><td>name the icon files once; items refer to the names</td></tr><tr><td><b>Bars</b></td><td>one entry per bar &mdash; name, dock, row, offset, gripper, floatable, ribbon, starts collapsed. And the five toolbar presets</td></tr><tr><td><b>Ribbon</b></td><td>tabs, and the groups inside them. And the ribbon preset</td></tr><tr><td><b>Menus</b></td><td>popup menus by name. And five menu presets</td></tr><tr><td><b>Items</b></td><td>everything that goes in a bar, a menu or a ribbon group</td></tr><tr><td><b>Keys</b></td><td>a Clarion key equate to a command id</td></tr></tbody></table></div><p><b>Names tie it together.</b> A bar is named on the Bars tab; an item names that bar in
+<i>Put it in</i>. The same goes for menus and ribbon groups. Each name becomes a variable in the generated
+source &mdash; <code>CBBar:1:Standard</code>, <code>CBMnu:1:RowMenu</code> &mdash; which is what you pass
+when you call the class yourself from an embed.</p><aside class="note note--warn"><p class="note__t">A name that resolves to nothing is a generate-time error</p><div class="note__b"><p>Not a silently missing item. If you rename a bar, the items pointing at it stop the generate until you rename them too.</p></div></aside><h2 id="presets"><span class="k">Templates</span>Presets</h2><p>Three buttons fill the lists in for you. What they make is ordinary entries afterwards
+&mdash; rename them, reorder them, delete the ones you do not want.</p><h4>Bars tab &mdash; five classic toolbars</h4><div class="tw"><table class=""><thead><tr><th>Preset</th><th>What is on it</th></tr></thead><tbody><tr><td><b>Standard</b></td><td>New, Open, Save &#124; Print &#124; Cut, Copy, Paste &#124; Undo, Redo &#124; a search box, Find &#124; Help at the far end. <code>Ctrl+N/O/S/P/F</code>, <code>F1</code></td></tr><tr><td><b>Formatting</b></td><td>font and size combos &#124; <b>B</b> <i>I</i> U and a text-colour button &#124; left / centre / right &#124; bulleted and numbered lists. <code>Ctrl+B/I/U</code></td></tr><tr><td><b>Browse and records</b></td><td>the VCR keys &#124; Insert, Change, Delete &#124; a locator box, Locate, Sort, Mark &#124; Refresh &#124; Print</td></tr><tr><td><b>Navigation</b></td><td>Back, Forward, Stop, Refresh, Home &#124; an address box that <b>stretches</b> &#124; Go, Search &#124; a zoom <b>slider</b></td></tr><tr><td><b>Print and export</b></td><td>Print, Preview, a page <b>spin box</b> &#124; an <b>Export drop button</b> carrying PDF, Excel, CSV, HTML, XML and text &#124; Refresh &#124; a <b>progress bar</b> and Close</td></tr></tbody></table></div><h4>Ribbon tab</h4><p>The ribbon from <code>CommandBarShowcase</code>, plus the two things only a ribbon can do:
+<b>Home</b> (Clipboard, Font, a <b>Styles gallery</b>, Editing), <b>Insert</b> (Pages, Illustrations,
+Links) and <b>View</b> (Show, and Zoom with a <b>slider</b>).</p><h4>Menus tab</h4><p>One of <b>File</b>, <b>Edit</b>, <b>Browse row</b>, <b>View</b> or <b>Help</b>.</p><p>Each press starts a new bar on the first row of that edge nobody is using, and command ids
+carry on from the highest already in use &mdash; so nothing a preset makes collides with what you added
+yourself. Press one twice and you get <code>Standard2</code>.</p><h2 id="items"><span class="k">Templates</span>The Items dialog</h2><p>Five tabs, because sixteen item types will not fit in one column.</p><div class="tw"><table class=""><thead><tr><th>Tab</th><th>What is on it</th></tr></thead><tbody><tr><td><b>General</b></td><td>where it goes, type, text, command id, image, tooltip, width</td></tr><tr><td><b>Action</b></td><td>what it does, and only the fields that action needs</td></tr><tr><td><b>Settings</b></td><td><b>one</b> box, chosen by type &mdash; the menu it opens, combo choices, edit value, colour, slider range, gallery grid and cells</td></tr><tr><td><b>In a menu</b></td><td>shortcut text, bold (the default row), radio dot</td></tr><tr><td><b>State and layout</b></td><td>checked, disabled, hidden, auto-check, right-align, wrap, image-above-text, icon-only, text-only, stretch</td></tr></tbody></table></div><h3>What an item does</h3><div class="tw"><table class=""><thead><tr><th>Action</th><th>Generates</th></tr></thead><tbody><tr><td>Embed code only</td><td>nothing &mdash; you write it</td></tr><tr><td>Call a procedure</td><td><code>ThatProcedure(parms)</code></td></tr><tr><td>Do a routine</td><td><code>DO ThatRoutine</code></td></tr><tr><td>Emulate a control</td><td><code>POST(EVENT:Accepted, ?ThatControl)</code></td></tr><tr><td>Post an event</td><td><code>POST(EVENT:Whatever, ?Control)</code></td></tr><tr><td>Close the window</td><td><code>POST(EVENT:CloseWindow)</code></td></tr></tbody></table></div><p><b>Emulate a control</b> saves the most work: point a bar button at a <code>BUTTON</code> or
+a menu <code>ITEM</code> already on the window and its existing embed code runs, untouched.</p><h3>A gallery&rsquo;s cells</h3><p>One line, <code>Text=Image</code> separated by pipes, in the order they read &mdash; the
+image names come from the Images tab:</p><pre class="code" data-lang="cells"><code>Normal=New|Heading=Open|Title=Save|Quote=Print</code></pre><p>Leave the <code>=Image</code> off a cell that has no picture. Clicking a cell raises the
+item&rsquo;s command with the cell number (0 first) in <code>LastParam</code>.</p><h2 id="embeds"><span class="k">Templates</span>Embed points</h2><p>Ten, each existing in all three extensions. The per-command one is the one you will use
+most: <b>every distinct command id gets its own embed</b>, so you are not writing a <code>CASE</code> by
+hand.</p><div class="tw"><table class=""><thead><tr><th>Embed</th><th>When it runs</th></tr></thead><tbody><tr><td><b>this command was chosen</b></td><td>one per command id &mdash; the workhorse</td></tr><tr><td>before the bars are created</td><td>anything that must happen before <code>Init</code>&rsquo;s work</td></tr><tr><td>after the bars are built</td><td>add items the prompts cannot describe</td></tr><tr><td>a toggle or check box flipped</td><td><code>LastParam</code> is 1 when on</td></tr><tr><td>a menu is about to open</td><td>rebuild a Recent list before it shows</td></tr><tr><td>an edit box was committed</td><td><code>ItemValue(item)</code> has the text</td></tr><tr><td>a combo selection changed</td><td><code>LastParam</code> is the 0-based index</td></tr><tr><td>a colour button changed</td><td><code>LastParam</code> is the colour</td></tr><tr><td>a ribbon tab was switched</td><td><code>LastParam</code> is the tab</td></tr><tr><td>an item was right-clicked</td><td>hang a context menu off it</td></tr></tbody></table></div><p>The generated object is called <code>CommandBar</code>, so inside an embed you have the
+whole class: <code>CommandBar.SetItemEnabled(CBItm:1:7, 0)</code>.</p><h2 id="generated"><span class="k">Templates</span>What gets generated</h2><pre class="code" data-lang="clarion"><code>!  what the template writes into your procedure, trimmed:
+CBBar:1:Standard = CommandBar.AddBar(&#x27;Standard&#x27;,CBD:Top,6)
+CommandBar.SetBarDock(CBBar:1:Standard,CBD:Top,0,0)
+CBItm:1:1 = CommandBar.AddItem(CBBar:1:Standard,CBI:Button,1000,&#x27;&amp;New&#x27;,CBImg:1:New)
+CommandBar.SetItemTooltip(CBItm:1:1,&#x27;New (Ctrl+N)&#x27;)
+
+!  and the dispatch, one branch per distinct command id:
+LOOP WHILE CommandBar.TakeOne()
+  CASE CommandBar.LastEvent
+  OF CBE:Command
+  OROF CBE:ValueChanged
+    CASE CommandBar.LastCmd
+    OF 1000
+      !  &lt;-- your embed for command 1000 runs here
+    END
+  END
+END</code></pre><aside class="note note--cla"><p class="note__t">Regenerate versus rebuild</p><div class="note__b"><p>Template changes only reach you on the next <b>generate</b>. Engine changes are in the DLL and reach you on the next <b>run</b>. When something is fixed &ldquo;in the DLL alone&rdquo;, copying the new <code>commandbar.dll</code> beside your EXE is the whole fix.</p></div></aside><h2 id="next3"><span class="k">Templates</span>Where to go next</h2><div class="next"><a href="https://claude.ai/code/artifact/bfef6768-0e5d-45e6-9a8e-9f053eb6dbbb"><b>Reference &rarr;</b><span>The class, the DLL and the equates</span></a><a href="https://claude.ai/code/artifact/7f6f84a6-3bea-4d92-948c-480f3d6a583d"><b>Programmer&#x27;s Guide &rarr;</b><span>How it works, and how to make it do things</span></a><a href="https://claude.ai/code/artifact/9f7423f8-9a58-4c90-83fb-bc902fce7cfc"><b>Getting Started &rarr;</b><span>Install it and get a bar on screen</span></a></div>
+    <footer>ClaCommandBar &mdash; four volumes. The reference is generated from <code>commandbar.h</code>, <code>commandbar.def</code> and <code>CommandBar.inc</code>, so its signatures and ordinals are the ones in the build.</footer>
+  </div>
+</main>
+</div>
+<script>
+const q = document.getElementById('filter');
+if (q) {
+  const rows = [...document.querySelectorAll('tr.fn')];
+  q.addEventListener('input', () => {
+    const t = q.value.trim().toLowerCase();
+    rows.forEach(r => r.classList.toggle('hide', t && !r.dataset.k.includes(t)));
+    document.querySelectorAll('.tw').forEach(w => {
+      const body = w.querySelector('tbody');
+      if (!body) return;
+      const any = [...body.querySelectorAll('tr')].some(r => !r.classList.contains('hide'));
+      const h = w.previousElementSibling;
+      w.classList.toggle('hide', !any);
+      if (h && h.tagName === 'H3') h.classList.toggle('hide', !any);
+    });
+  });
+}
+const links = [...document.querySelectorAll('.nav__l a')];
+if (links.length) {
+  const spy = new IntersectionObserver(es => {
+    es.forEach(e => {
+      if (!e.isIntersecting) return;
+      links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id));
+    });
+  }, {rootMargin:'0px 0px -78% 0px'});
+  document.querySelectorAll('h2[id],h3[id]').forEach(h => spy.observe(h));
+}
+</script>

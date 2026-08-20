@@ -1,0 +1,315 @@
+<title>ClaCommandBar Programmer&#x27;s Guide</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@400;600&display=swap">
+<style>
+:root{
+  --paper:#fbfcfd; --surface:#f1f5f9; --sunken:#e9eff5; --rule:#d6e0ea;
+  --ink:#0f1720; --soft:#4e5f70; --faint:#7d8ea0;
+  --accent:#2f6a9a; --accent-bg:#e4eef6; --accent-rule:#b9d3e6;
+  --clarion:#166f69; --clarion-bg:#e2f1ef;
+  --warn:#8a5a12; --warn-bg:#f7eeda;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0d131a; --surface:#151d26; --sunken:#111922; --rule:#25313d;
+    --ink:#e2eaf2; --soft:#9aabbc; --faint:#6f8092;
+    --accent:#6fadde; --accent-bg:#152738; --accent-rule:#28455f;
+    --clarion:#4fb5ab; --clarion-bg:#102a29;
+    --warn:#d8a545; --warn-bg:#2b2413;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0d131a; --surface:#151d26; --sunken:#111922; --rule:#25313d;
+  --ink:#e2eaf2; --soft:#9aabbc; --faint:#6f8092;
+  --accent:#6fadde; --accent-bg:#152738; --accent-rule:#28455f;
+  --clarion:#4fb5ab; --clarion-bg:#102a29;
+  --warn:#d8a545; --warn-bg:#2b2413;
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--paper); color:var(--ink);
+  font-family:"IBM Plex Serif",Georgia,serif; font-size:16px; line-height:1.62;
+  -webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,.ui{font-family:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif}
+code,pre,.mono{font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace}
+a{color:var(--accent)}
+.wrap{display:grid; grid-template-columns:270px minmax(0,1fr); align-items:start}
+.side{position:sticky; top:0; height:100vh; overflow-y:auto; padding:24px 20px 60px;
+  border-right:1px solid var(--rule); background:var(--surface)}
+.brand{font-family:"IBM Plex Sans",sans-serif; font-weight:600; font-size:15px; margin:0 0 14px}
+.brand b{color:var(--accent)}
+/* ---- the four volumes ---- */
+.vols{list-style:none; margin:0 0 18px; padding:0; display:flex; flex-direction:column; gap:3px;
+  border-bottom:1px solid var(--rule); padding-bottom:16px}
+.vols a{display:block; padding:7px 10px; border-radius:6px; text-decoration:none;
+  font:500 13px/1.35 "IBM Plex Sans",sans-serif; color:var(--soft); border:1px solid transparent}
+.vols a:hover{background:var(--sunken); color:var(--ink)}
+.vols a.here{background:var(--accent-bg); border-color:var(--accent-rule); color:var(--accent)}
+.vols small{display:block; font:400 11px/1.35 "IBM Plex Sans",sans-serif; color:var(--faint);
+  margin-top:2px}
+.vols a.here small{color:var(--accent)}
+.filter{width:100%; margin:0 0 16px; padding:7px 10px; font:13px/1.4 "IBM Plex Sans",sans-serif;
+  color:var(--ink); background:var(--paper); border:1px solid var(--rule); border-radius:6px}
+.filter:focus{outline:2px solid var(--accent); outline-offset:1px}
+.nav__g{font:600 10.5px/1 "IBM Plex Sans",sans-serif; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--faint); margin:18px 0 8px}
+.nav__l{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px}
+.nav__l a{display:block; padding:4px 8px; border-radius:5px; text-decoration:none; color:var(--soft);
+  font:400 13.5px/1.45 "IBM Plex Sans",sans-serif}
+.nav__l a:hover{background:var(--sunken); color:var(--ink)}
+.nav__l a.on{background:var(--accent-bg); color:var(--accent); font-weight:500}
+.main{padding:0 0 120px; min-width:0}
+.inner{max-width:980px; padding:0 40px}
+.hero{padding:52px 40px 30px; border-bottom:1px solid var(--rule);
+  background:linear-gradient(180deg,var(--accent-bg),transparent)}
+.hero .inner{padding:0}
+.eyebrow{font:600 11px/1 "IBM Plex Sans",sans-serif; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--accent); margin:0 0 12px}
+h1{font-size:37px; line-height:1.1; margin:0 0 10px; letter-spacing:-.015em; text-wrap:balance}
+.sub{font-size:17px; color:var(--soft); margin:0 0 18px; max-width:62ch}
+.chips{display:flex; flex-wrap:wrap; gap:8px}
+.chip{font:500 11.5px/1 "IBM Plex Sans",sans-serif; padding:6px 10px; border-radius:99px;
+  border:1px solid var(--rule); background:var(--paper); color:var(--soft)}
+.chip b{color:var(--ink); font-weight:600}
+h2{font-size:26px; margin:60px 0 6px; letter-spacing:-.01em; scroll-margin-top:18px; text-wrap:balance}
+h2 .k{font:600 10.5px/1 "IBM Plex Sans",sans-serif; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--accent); display:block; margin-bottom:9px}
+h3{font-size:17.5px; margin:36px 0 10px; scroll-margin-top:18px}
+h4{font-size:14.5px; margin:24px 0 6px; color:var(--soft); font-weight:600}
+p{margin:0 0 14px; max-width:70ch}
+.lead{color:var(--soft); max-width:70ch}
+ul.b,ol.b{max-width:70ch; padding-left:20px; margin:0 0 16px}
+ul.b li,ol.b li{margin:0 0 7px}
+.code{background:var(--sunken); border:1px solid var(--rule); border-left:3px solid var(--accent-rule);
+  border-radius:0 7px 7px 0; padding:14px 16px; overflow-x:auto; margin:0 0 18px;
+  font-size:12.9px; line-height:1.62; position:relative}
+.code code{white-space:pre; color:var(--ink)}
+.code::after{content:attr(data-lang); position:absolute; top:0; right:0; padding:3px 9px;
+  font:500 9.5px/1 "IBM Plex Sans",sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--faint); background:var(--surface); border-left:1px solid var(--rule);
+  border-bottom:1px solid var(--rule); border-radius:0 0 0 6px}
+.code--use{margin:7px 0 2px; border-left-color:var(--clarion); background:var(--paper);
+  font-size:12.4px; padding:9px 12px}
+.code--use::after{content:'Clarion'; color:var(--clarion)}
+p code,li code,td code{background:var(--sunken); border:1px solid var(--rule); border-radius:4px;
+  padding:.06em .34em; font-size:.86em}
+.tw{overflow-x:auto; margin:0 0 20px; border:1px solid var(--rule); border-radius:8px;
+  background:var(--paper)}
+table{border-collapse:collapse; width:100%; font-size:13.5px;
+  font-family:"IBM Plex Sans",sans-serif}
+th{text-align:left; font-weight:600; font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--faint); padding:9px 14px; border-bottom:1px solid var(--rule); background:var(--surface)}
+td{padding:10px 14px; border-bottom:1px solid var(--rule); vertical-align:top}
+tr:last-child td{border-bottom:0}
+.fns .fn__n{width:210px; white-space:nowrap}
+.fns .fn__n code{font-size:12.6px; color:var(--accent); font-weight:500; background:none;
+  border:0; padding:0}
+.fns .fn__s code{font-size:12.4px; color:var(--soft); background:none; border:0; padding:0;
+  white-space:pre-wrap}
+.fn__d{margin:5px 0 0; font-family:"IBM Plex Serif",serif; font-size:13.5px; color:var(--ink);
+  max-width:74ch}
+.ord{margin-left:7px; font:500 10px/1 "IBM Plex Mono",monospace; color:var(--faint);
+  border:1px solid var(--rule); border-radius:4px; padding:2px 4px; vertical-align:1px}
+.eq td:first-child code{color:var(--accent); background:none; border:0; padding:0}
+.eq .v{font-variant-numeric:tabular-nums; color:var(--soft)}
+.note{border:1px solid var(--rule); border-left:3px solid var(--accent); background:var(--surface);
+  border-radius:0 7px 7px 0; padding:13px 16px; margin:0 0 18px; max-width:74ch}
+.note--warn{border-left-color:var(--warn); background:var(--warn-bg)}
+.note--cla{border-left-color:var(--clarion); background:var(--clarion-bg)}
+.note__t{font:600 12px/1.3 "IBM Plex Sans",sans-serif; letter-spacing:.03em; margin:0 0 5px;
+  text-transform:uppercase; color:var(--soft)}
+.note--warn .note__t{color:var(--warn)} .note--cla .note__t{color:var(--clarion)}
+.note__b p{margin:0 0 8px; font-size:14.5px} .note__b p:last-child{margin:0}
+.stack{display:flex; flex-direction:column; gap:9px; margin:0 0 22px; max-width:640px}
+.layer{border:1px solid var(--rule); border-radius:8px; padding:12px 15px; background:var(--surface);
+  display:grid; grid-template-columns:118px 1fr; gap:14px; align-items:baseline}
+.layer b{font:600 11px/1.4 "IBM Plex Sans",sans-serif; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--accent)}
+.layer.cla b{color:var(--clarion)}
+.layer p{margin:0; font-size:14px; color:var(--soft); max-width:none}
+.arrow{text-align:center; color:var(--faint); font-size:12px; margin:-4px 0}
+/* ---- where to next ---- */
+.next{display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px;
+  margin:26px 0 0}
+.next a{display:block; padding:14px 16px; border:1px solid var(--rule); border-radius:9px;
+  background:var(--surface); text-decoration:none}
+.next a:hover{border-color:var(--accent-rule); background:var(--accent-bg)}
+.next b{display:block; font:600 14px/1.3 "IBM Plex Sans",sans-serif; color:var(--accent);
+  margin-bottom:3px}
+.next span{font:400 13px/1.45 "IBM Plex Serif",serif; color:var(--soft)}
+.hide{display:none !important}
+footer{margin-top:70px; padding:22px 40px 0; border-top:1px solid var(--rule); color:var(--faint);
+  font:400 13px/1.6 "IBM Plex Sans",sans-serif}
+@media (max-width:900px){
+  .wrap{grid-template-columns:1fr}
+  .side{position:static; height:auto; border-right:0; border-bottom:1px solid var(--rule)}
+  .inner,.hero{padding-left:22px; padding-right:22px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none !important; transition:none !important}}
+</style>
+<div class="wrap">
+<nav class="side">
+  <p class="brand"><b>ClaCommandBar</b></p>
+<ul class="vols"><li><a href="https://claude.ai/code/artifact/9f7423f8-9a58-4c90-83fb-bc902fce7cfc">1. Getting Started<small>Install it and get a bar on screen</small></a></li><li><a href="#" class="here">2. Programmer&#x27;s Guide<small>How it works, and how to make it do things</small></a></li><li><a href="https://claude.ai/code/artifact/dc72dc88-b5af-41b4-a3b0-8f73cb308ae9">3. Template Guide<small>Every template, tab, prompt and embed</small></a></li><li><a href="https://claude.ai/code/artifact/bfef6768-0e5d-45e6-9a8e-9f053eb6dbbb">4. Reference<small>The class, the DLL and the equates</small></a></li></ul><p class="nav__g">Concepts</p><ul class="nav__l"><li><a href="#model">Managers and items</a></li><li><a href="#pump">The event pump</a></li><li><a href="#docking">Rows and docking</a></li></ul><p class="nav__g">How to</p><ul class="nav__l"><li><a href="#ribbon">Building a ribbon</a></li><li><a href="#mirror">Taking over the menu</a></li><li><a href="#host">Room for the bars</a></li><li><a href="#values">Sliders and progress</a></li><li><a href="#layout">Remembering positions</a></li><li><a href="#theme">Theming</a></li></ul><p class="nav__g">Clarion notes</p><ul class="nav__l"><li><a href="#clarion">Why Clarion does that</a></li><li><a href="#trouble">When it misbehaves</a></li><li><a href="#next2">Where to go next</a></li></ul>
+</nav>
+<main class="main">
+  <header class="hero"><div class="inner">
+    <p class="eyebrow">Volume 2</p>
+    <h1>Programmer&#x27;s Guide</h1>
+    <p class="sub">How the pieces fit, how to make each one do what you want, and why Clarion behaves the way it does when it surprises you.</p>
+    <div class="chips"><span class="chip"><b>3</b> layers</span><span class="chip"><b>16</b> item types</span><span class="chip"><b>11</b> themes</span></div>
+  </div></header>
+  <div class="inner"><h2 id="model"><span class="k">Concepts</span>Managers, containers, items</h2>
+<p>One <b>manager</b> per window &mdash; <code>CB.Init</code> makes it, <code>CB.Kill</code> takes it
+down. A <b>container</b> is anything that holds items: a docked bar, a floating bar, a popup menu, or a
+ribbon group. An <b>item</b> is a button, a toggle, a separator, an edit box. Both come back as integer
+ids, and you keep the ones you will need again.</p>
+<h3>Command ids are yours</h3>
+<p>Every item carries a <b>command id</b> you choose. Clicking it queues an event carrying that id; an id
+of <code>0</code> means the item raises nothing, which is what separators and labels use. Two items may
+share an id &mdash; a toolbar button and a menu row for the same command usually should, and then
+<code>EnableCmd</code> greys out both at once.</p><h2 id="pump"><span class="k">Concepts</span>Nothing is dispatched behind your back</h2><p>The engine never calls into your code. It queues events, and you drain the queue:</p><pre class="code" data-lang="clarion"><code>  OF EVENT:Timer
+    LOOP WHILE CB.TakeOne()          ! returns 0 when the queue is empty
+      CASE CB.LastCmd
+      OF CMD:Save ; DO SaveRoutine
+      END
+    END
+    CYCLE</code></pre><p><code>TakeOne</code> fills <code>LastItem</code>, <code>LastCmd</code>,
+<code>LastEvent</code> and <code>LastParam</code>, then calls the virtual <code>TakeCommand</code> /
+<code>TakeToggled</code> methods. Deriving is the tidier way once a window has more than a handful of
+commands:</p><pre class="code" data-lang="clarion"><code>MyBar  CLASS(CommandBarClass)
+TakeCommand PROCEDURE(LONG cmd, SIGNED item),BYTE,DERIVED
+       END
+
+MyBar.TakeCommand PROCEDURE(LONG cmd, SIGNED item)
+  CODE
+  CASE cmd
+  OF CMD:Save ; DO SaveRoutine
+  OF CMD:Exit ; POST(EVENT:CloseWindow)
+  END
+  RETURN PARENT.TakeCommand(cmd, item)</code></pre><aside class="note note--warn"><p class="note__t">The pump needs a TIMER</p><div class="note__b"><p>Bars with no timer draw, hot-track and open their menus &mdash; and never deliver a thing. It is the single most common reason a bar &ldquo;does nothing&rdquo;.</p></div></aside><h2 id="docking"><span class="k">Concepts</span>Rows, offsets and docking</h2><p>Bars dock to an edge on a <b>row</b>: row 0 is nearest the edge, row 1 sits under it. Two
+bars on the same row sit side by side in <b>offset</b> order. A user with a gripper can drag a bar to
+another edge, into another row, or tear it off into a floating caption frame.</p>
+<p>A <b>ribbon always takes a row to itself</b>. It is a full-width band with tabs across it, so sharing a
+row would leave nothing for its neighbour &mdash; put a menu bar and a ribbon both on row 0 and the ribbon
+moves down to row 1 rather than swallowing the menu.</p><h2 id="ribbon"><span class="k">How to</span>Building a ribbon</h2><p>A bar of <b>tabs</b>; each tab a row of <b>groups</b>; each group full of ordinary items.</p><pre class="code" data-lang="clarion"><code>rib = CB.AddRibbon(&#x27;Ribbon&#x27;, CBD:Top)
+tab = CB.AddRibbonTab(rib, &#x27;&amp;Home&#x27;)
+
+grp = CB.AddRibbonGroup(tab, &#x27;Clipboard&#x27;)
+CB.AddLargeButton(grp, CMD:Paste, &#x27;Paste&#x27;, iPaste)   ! the big one
+CB.AddButton(grp, CMD:Cut,  &#x27;Cut&#x27;,  iCut)            ! small ones stack beside it
+CB.AddButton(grp, CMD:Copy, &#x27;Copy&#x27;, iCopy)
+
+grp = CB.AddRibbonGroup(tab, &#x27;Styles&#x27;)
+gal = CB.AddGallery(grp, CMD:Style, 4, 62, 54)       ! columns, cell w, cell h
+CB.AddGalleryCell(gal, iNew,  &#x27;Normal&#x27;)
+CB.AddGalleryCell(gal, iOpen, &#x27;Heading&#x27;)
+CB.SetGallerySel(gal, 0)
+
+CB.MinimizeRibbon(rib, 1)                            ! start collapsed</code></pre><p><code>AddLargeButton</code> (or the <code>CBIS:TextBelow</code> style) makes the big
+image-over-text button a group leads with; everything beside it stacks three-deep in small rows. A
+<b>gallery</b> takes a column of its own, and is shrunk to fit if it asks for more height than the group
+has.</p>
+<p>Collapsing is built in: a chevron at the end of the tab strip, a double-click on a tab, or
+<code>MinimizeRibbon</code>.</p><h2 id="mirror"><span class="k">How to</span>Taking over the menu</h2><p><code>MirrorMenu</code> reads the window&rsquo;s <code>MENUBAR</code> at run time and
+rebuilds it as a command bar &mdash; same order, same nesting, separators kept, <code>KEY()</code>
+attributes turned into a shortcut column, disabled items still disabled. Choosing a mirrored row POSTs
+<code>EVENT:Accepted</code> to the <b>original</b> <code>ITEM</code>, so every menu embed you already
+wrote goes on running.</p><pre class="code" data-lang="clarion"><code>Win WINDOW(&#x27;Mirrored&#x27;),AT(,,420,260),SYSTEM,GRAY,RESIZE,TIMER(10)
+      MENUBAR
+        MENU(&#x27;&amp;File&#x27;)
+          ITEM(&#x27;&amp;New&#x27;),USE(?MNew),KEY(CtrlN)
+          ITEM(&#x27;E&amp;xit&#x27;),USE(?MExit)
+        END
+      END
+    END
+
+  CODE
+  OPEN(Win)
+  CB.Init(Win, CBS:Tooltips + CBS:MenuIcons)
+  CB.MirrorMenu(CB.AddMenuBar(), 1)      ! 1 = take the real menu off the window
+
+  ACCEPT
+    CASE EVENT()
+    OF EVENT:Timer ; LOOP WHILE CB.TakeOne() . ; CYCLE
+    END
+    CASE ACCEPTED()
+    OF ?MNew                             ! your ORIGINAL embed code still runs
+      Win{PROP:Text} = &#x27;New, from the mirrored row&#x27;
+    OF ?MExit
+      POST(EVENT:CloseWindow)
+    END
+  END</code></pre><h3>And the toolbar</h3><p>The same trick on the row of buttons. Every <code>BUTTON</code>, <code>CHECK</code>,
+<code>ENTRY</code>, <code>COMBO</code> and <code>PROMPT</code> in the <code>TOOLBAR</code> becomes a bar
+item carrying its <code>ICON()</code>, its <code>TIP()</code> and its disabled state.</p><pre class="code" data-lang="clarion"><code>tb = CB.AddBar(&#x27;Tools&#x27;, CBD:Top)
+CB.SetBarDock(tb, CBD:Top, 1, 0)         ! its own row, under the menu
+n  = CB.MirrorToolbar(tb, 1)             ! 1 = hide the real TOOLBAR</code></pre><aside class="note note--cla"><p class="note__t">Why this matters on an MDI frame</p><div class="note__b"><p>Opening a child window makes Clarion hide the frame&rsquo;s toolbar, build a <b>second</b> <code>ClaToolBar</code> for the merged one, and swap them. Mirror the toolbar, hide the real one, and there is nothing left on screen for that to disturb.</p></div></aside><aside class="note note--warn"><p class="note__t">What mirroring cannot see</p><div class="note__b"><p>On an MDI frame it mirrors the <b>frame&rsquo;s own</b> menu. A menu an MDI child merges in is not reachable: the child&rsquo;s controls live on the child&rsquo;s thread and never enter the frame&rsquo;s control list, and although the frame&rsquo;s <code>HMENU</code> really does grow, Clarion owner-draws its menus so the items come back with no text at all.</p><p>Use <code>NOMERGE</code> on the children, or leave the real menu attached.</p></div></aside><h2 id="host"><span class="k">How to</span>Leaving room for the bars</h2><pre class="code" data-lang="clarion"><code>!  On an APPLICATION FRAME the frame&#x27;s own toolbar and MDI client are moved
+!  clear of the bars automatically.  A plain WINDOW positions its own
+!  controls, so re-fit whatever should fill what the bars left:
+  OF EVENT:Sized
+    CB.Layout()
+    CB.FitControl(?Browse:1, 4, 4)       ! 4px margin
+
+!  A WINDOW with a STATUS bar has no MDI client to measure from, so say
+!  how tall it is and no bar will cover it:
+  CB.HostReserveBottom(23)</code></pre><p><code>CB_GetClientRect</code> &mdash; <code>ClientX/Y/Width/Height</code> on the class
+&mdash; reports what the bars left over, in <b>pixels</b>. On a frame the host&rsquo;s own children are
+moved for you; on a plain window you place your own controls.</p><h2 id="values"><span class="k">How to</span>Sliders, spin boxes and progress bars</h2><p>One idea wearing three faces: a value between two bounds.</p><pre class="code" data-lang="clarion"><code>zoom = CB.AddSlider(bar, CMD:Zoom, 25, 400, 100, 130)   ! lo, hi, value, width
+page = CB.AddSpin(bar, CMD:Page, 1, 9999, 1, 60)
+busy = CB.AddProgress(bar, 0, 100, 0, 130)
+
+!  in the pump - the value arrives in LastParam
+  OF CBE:ValueChanged
+    CASE CB.LastCmd
+    OF CMD:Zoom ; Scale = CB.LastParam
+    END
+
+!  the progress bar raises nothing; drive it yourself
+CB.SetItemNumber(busy, done * 100 / total)</code></pre><aside class="note note--warn"><p class="note__t">A drag fires on every step</p><div class="note__b"><p>Keep that handler cheap &mdash; store the value and do the heavy work afterwards, or a slider repaints your report once per pixel.</p></div></aside><h2 id="layout"><span class="k">How to</span>Remembering where the user put them</h2><p>One INI entry holds which edge each bar is on, which row, the order within it, whether it is
+showing, where a floating one sits, and whether a ribbon is collapsed.</p><pre class="code" data-lang="clarion"><code>!  after the bars are built
+CB.RestoreLayoutFrom(&#x27;.\MyApp.INI&#x27;, &#x27;CommandBars&#x27;)
+
+!  before the window closes
+CB.SaveLayoutTo(&#x27;.\MyApp.INI&#x27;, &#x27;CommandBars&#x27;)</code></pre><p>Bars are matched by <b>name</b>, so adding or removing one in a later release never hands an
+old position to the wrong bar; a name it does not recognise is ignored. <code>LayoutText()</code> and
+<code>RestoreLayout()</code> hand you the blob directly if you would rather keep it in a user record.</p><h2 id="theme"><span class="k">How to</span>Theming</h2><pre class="code" data-lang="clarion"><code>CB.SetTheme(CBT:Office2016)              ! start from one of eleven
+CB.SetAccent(COLOR:Navy)                 ! re-derive the palette from an accent
+CB.SetColor(CBC:BarBack, 00F5F5F5h)      ! or override single slots
+CB.SetMetric(CBM:IconSize, 20)
+CB.SetMetric(CBM:LargeIcon, 32)
+CB.Redraw()</code></pre><p>Eleven themes, each derived from a handful of seed colours; 38 colour slots, four font roles
+and thirteen metrics on top. The full tables are in the <a href="https://claude.ai/code/artifact/bfef6768-0e5d-45e6-9a8e-9f053eb6dbbb#eq">Reference</a>.</p><h2 id="clarion"><span class="k">Clarion notes</span>Why Clarion behaves as it does</h2><p>Most of the surprises in this library are not the library. They are worth knowing before you
+go looking for a bug that is not there.</p><div class="tw"><table class=""><thead><tr><th>What you see</th><th>What is actually happening</th></tr></thead><tbody><tr><td>A mirrored bar comes out empty</td><td>Menu controls live in <b>four</b> equate ranges. A <code>WINDOW</code> numbers named ones upward from 1 and unnamed ones upward from 32768; an <code>APPLICATION</code> frame numbers named ones <b>downward from -1</b> and unnamed ones downward from 32767, and answers <code>LASTFIELD() = 0</code>. Call <code>MenuReport()</code> &mdash; it says which it found</td></tr><tr><td>The frame&rsquo;s toolbar disappears when a procedure opens</td><td><code>NOMERGE</code> on the frame&rsquo;s own <code>TOOLBAR</code> means &ldquo;do not carry this into the merge&rdquo;. Put <code>NOMERGE</code> on <b>children</b>, never on the frame&rsquo;s toolbar</td></tr><tr><td>A child&rsquo;s merged menu never appears on the mirrored bar</td><td>It cannot. The child&rsquo;s controls are on the child&rsquo;s thread, and the merged <code>HMENU</code> is owner-drawn &mdash; every item reads back <code>MFT_OWNERDRAW</code> with <code>cch = 0</code> and no text</td></tr><tr><td>A toolbar flickers when an MDI child opens or closes</td><td>Clarion swaps the frame&rsquo;s toolbar for a merged one and back, so that strip is painted twice either way. Mirroring the toolbar and hiding the real one removes it</td></tr><tr><td><code>PROP:Hide</code> does nothing to a <code>MENUBAR</code></td><td>It is a real Win32 menu on the frame, not a control. <code>SetHostMenu(0)</code> detaches it with <code>SetMenu()</code>, and puts it back when the window closes</td></tr></tbody></table></div><aside class="note note--cla"><p class="note__t">When a frame child sits in the wrong place</p><div class="note__b"><p>Set <code>CB_HOSTLOG=1</code> in the environment and run again. Every move of the host&rsquo;s own children is traced to <code>%TEMP%\cbhost.log</code> &mdash; <code>HOOK</code>, <code>CHANGING</code> and <code>APPLY</code> lines with the rect asked for and the rect given.</p></div></aside><h2 id="trouble"><span class="k">Clarion notes</span>When it misbehaves</h2><div class="tw"><table class=""><thead><tr><th>What you see</th><th>What it is</th></tr></thead><tbody><tr><td>No bars at all</td><td>The DLL is not beside the EXE, or <code>Init</code> returned 0 &mdash; check its result</td></tr><tr><td>Bars appear, clicks do nothing</td><td>Nothing is pumping. The window needs a <code>TIMER</code> and the timer needs to reach <code>TakeOne</code></td></tr><tr><td>Bars do not resize with the window</td><td><code>EVENT:Sized</code> is not reaching <code>Layout()</code></td></tr><tr><td>Icons missing</td><td>The images are not in the project and not beside the EXE. <code>NEW.ICO</code> is looked up as the resource <code>NEW_ICO</code></td></tr><tr><td>A slider, spin, progress or gallery draws as a plain button with its text on it</td><td>An old <code>commandbar.dll</code>: <code>CB_AddItem</code> used to reject any type above <code>CBI_SPACE</code> and hand back a button. The DLL alone fixes it &mdash; nothing to regenerate</td></tr><tr><td>A slider moves but nothing happens in a generated app</td><td>Older generated code: the pump only handled <code>CBE:Command</code>. It takes <code>CBE:ValueChanged</code> too now, so regenerate</td></tr><tr><td><code>Unresolved External CB_...</code></td><td>A second <code>commandbar.lib</code> is shadowing the installed one &mdash; check your own application folder, and <code>accessory\libsrc\win</code></td></tr><tr><td>AppGen hangs on a template button</td><td>A template group returned text where a number was expected &mdash; <code>&#39;0&#39;</code> is true to <code>#IF</code> and to <code>#LOOP,WHILE</code></td></tr></tbody></table></div><h2 id="next2"><span class="k">Guide</span>Where to go next</h2><div class="next"><a href="https://claude.ai/code/artifact/dc72dc88-b5af-41b4-a3b0-8f73cb308ae9"><b>Template Guide &rarr;</b><span>Every template, tab, prompt and embed</span></a><a href="https://claude.ai/code/artifact/bfef6768-0e5d-45e6-9a8e-9f053eb6dbbb"><b>Reference &rarr;</b><span>The class, the DLL and the equates</span></a><a href="https://claude.ai/code/artifact/9f7423f8-9a58-4c90-83fb-bc902fce7cfc"><b>Getting Started &rarr;</b><span>Install it and get a bar on screen</span></a></div>
+    <footer>ClaCommandBar &mdash; four volumes. The reference is generated from <code>commandbar.h</code>, <code>commandbar.def</code> and <code>CommandBar.inc</code>, so its signatures and ordinals are the ones in the build.</footer>
+  </div>
+</main>
+</div>
+<script>
+const q = document.getElementById('filter');
+if (q) {
+  const rows = [...document.querySelectorAll('tr.fn')];
+  q.addEventListener('input', () => {
+    const t = q.value.trim().toLowerCase();
+    rows.forEach(r => r.classList.toggle('hide', t && !r.dataset.k.includes(t)));
+    document.querySelectorAll('.tw').forEach(w => {
+      const body = w.querySelector('tbody');
+      if (!body) return;
+      const any = [...body.querySelectorAll('tr')].some(r => !r.classList.contains('hide'));
+      const h = w.previousElementSibling;
+      w.classList.toggle('hide', !any);
+      if (h && h.tagName === 'H3') h.classList.toggle('hide', !any);
+    });
+  });
+}
+const links = [...document.querySelectorAll('.nav__l a')];
+if (links.length) {
+  const spy = new IntersectionObserver(es => {
+    es.forEach(e => {
+      if (!e.isIntersecting) return;
+      links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id));
+    });
+  }, {rootMargin:'0px 0px -78% 0px'});
+  document.querySelectorAll('h2[id],h3[id]').forEach(h => spy.observe(h));
+}
+</script>
