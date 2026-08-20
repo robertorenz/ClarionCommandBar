@@ -312,6 +312,55 @@ S_HOST = """
   CB.HostReserveBottom(23)
 """
 
+S_TOOLBAR = """
+!  the frame's own TOOLBAR, rebuilt as a command bar
+bar = CommandBar.AddBar('Tools', CBD:Top)
+CommandBar.SetBarDock(bar, CBD:Top, 1, 0)         ! its own row, under the menu
+n   = CommandBar.MirrorToolbar(bar, 1)            ! 1 = hide the real toolbar
+"""
+
+S_LAYOUT = """
+!  after the bars are built
+CommandBar.RestoreLayoutFrom('.\\MyApp.INI', 'CommandBars')
+
+!  before the window closes
+CommandBar.SaveLayoutTo('.\\MyApp.INI', 'CommandBars')
+"""
+
+S_VALUES = """
+zoom = CommandBar.AddSlider(bar, CMD:Zoom, 25, 400, 100, 130)   ! lo, hi, value, width
+page = CommandBar.AddSpin(bar, CMD:Page, 1, 9999, 1, 60)
+prog = CommandBar.AddProgress(bar, 0, 100, 0, 130)
+
+!  in the pump - the value arrives in LastParam
+  OF CBE:ValueChanged
+    CASE CommandBar.LastCmd
+    OF CMD:Zoom ; Scale = CommandBar.LastParam
+    END
+
+!  drive the progress bar yourself
+CommandBar.SetItemNumber(prog, done * 100 / total)
+"""
+
+S_GALLERY = """
+gal = CommandBar.AddGallery(grp, CMD:Style, 4, 62, 54)   ! columns, cell w, cell h
+CommandBar.AddGalleryCell(gal, iNew,  'Normal')
+CommandBar.AddGalleryCell(gal, iOpen, 'Heading')
+CommandBar.AddGalleryCell(gal, iSave, 'Title')
+CommandBar.SetGallerySel(gal, 0)
+
+!  a click raises the item's command with the cell number in LastParam
+  OF CMD:Style
+    Style = CommandBar.LastParam
+"""
+
+S_RIBMIN = """
+CommandBar.MinimizeRibbon(rib, 1)              ! collapse it
+IF CommandBar.RibbonMinimized(rib)
+  !  it is showing its tabs only
+END
+"""
+
 S_C = """
 CB_Initialize();
 HCB cb = CB_Create(hwnd, CBS_TOOLTIPS);
@@ -614,6 +663,9 @@ add('''<p>Add the extension, then fill in the tabs. They are in the order you wi
 <tr><td><b>Items</b></td><td>everything that goes in a bar, a menu or a ribbon group</td></tr>
 <tr><td><b>Keys</b></td><td>a Clarion key equate to a command id</td></tr>
 </tbody></table></div>
+<p>Two more worth knowing: <b>General</b> carries <i>Remember where the user puts the bars</i>, and
+on a frame the <b>Menu and toolbar</b> tab mirrors the frame's <code>TOOLBAR</code> as well as its
+<code>MENUBAR</code>.</p>
 <p>Names tie it together. A bar is named on the Bars tab; an item names that bar in <b>Put it in</b>.
 The same goes for menus and ribbon groups. Each name becomes a variable in the generated source
 &mdash; <code>CBBar:1:Standard</code>, <code>CBMnu:1:RowMenu</code> &mdash; which is what you pass when you
@@ -636,9 +688,10 @@ add('''<p>Three buttons fill the lists in for you. What they make is ordinary en
 <tr><td><b>Print and export</b></td><td>Print, Preview &#124; an Export drop button carrying a menu of PDF, Excel, CSV, HTML, XML, text</td></tr>
 </tbody></table></div>
 <h4>Ribbon tab</h4>
-<p>Builds the ribbon from <code>CommandBarShowcase</code> entry for entry: <b>Home</b> (Clipboard, Font,
-Editing), <b>Insert</b> (Pages, Illustrations, Links) and <b>View</b> (Show, Zoom), with a big button
-leading each group and real controls &mdash; combos, toggles, a colour button &mdash; among them.</p>
+<p>Builds the ribbon from <code>CommandBarShowcase</code>, plus the two things only a ribbon can do:
+<b>Home</b> (Clipboard, Font, a <b>Styles gallery</b>, Editing), <b>Insert</b> (Pages, Illustrations,
+Links) and <b>View</b> (Show, and Zoom with a <b>slider</b>) &mdash; a big button leading each group and
+real controls, combos, toggles and a colour button, among them.</p>
 <h4>Menus tab</h4>
 <p>One of <b>File</b>, <b>Edit</b>, <b>Browse row</b>, <b>View</b> or <b>Help</b>, chosen in the drop
 beside the button.</p>
@@ -680,7 +733,7 @@ add(class_tables())
 
 # ---------------------------------------------------------------- C API
 add('<h2 id="capi"><span class="k">C API</span>commandbar.dll</h2>')
-add('''<p>84 exports, plain <code>__stdcall</code>, no C++ in the signatures. Usable from anything that can
+add('''<p>Plain <code>__stdcall</code>, no C++ in the signatures. Usable from anything that can
 call a DLL &mdash; the Clarion class is only the first caller.</p>''')
 add(code(S_C, 'c'))
 add(note('warn', 'Ordinals are a contract',
@@ -730,6 +783,46 @@ CB.SetMetric(CBM:IconSize, 20)
 CB.SetMetric(CBM:LargeIcon, 32)
 CB.Refresh()'''))
 
+add('<h3>Take over the frame\'s toolbar too</h3>')
+add('''<p>The same trick on the row of buttons. Every <code>BUTTON</code>, <code>CHECK</code>,
+<code>ENTRY</code>, <code>COMBO</code> and <code>PROMPT</code> in the <code>TOOLBAR</code> becomes a bar
+item carrying its <code>ICON()</code>, its <code>TIP()</code> and its disabled state, and choosing one
+POSTs <code>EVENT:Accepted</code> to the <b>original</b> control.</p>''')
+add(code(S_TOOLBAR))
+add(note('cla', 'Why this matters on an MDI frame',
+   '<p>Opening a child window makes Clarion hide the frame\'s toolbar, build a <b>second</b> '
+   '<code>ClaToolBar</code> for the merged one and swap them. Mirror the toolbar, hide the real one, and '
+   'there is nothing left on screen for that to disturb.</p>'))
+
+add('<h3>Remember where the user put them</h3>')
+add('''<p>One INI entry holds the lot &mdash; which edge each bar is on, which row, the order within it,
+whether it is showing, where a floating one sits, and whether a ribbon is collapsed.</p>''')
+add(code(S_LAYOUT))
+add('''<p>Bars are matched by <b>name</b>, so adding or removing one in a later release never hands an old
+position to the wrong bar; a name it does not recognise is ignored. <code>LayoutText()</code> and
+<code>RestoreLayout()</code> hand you the blob directly if you would rather keep it in a user record or a
+settings table.</p>''')
+
+add('<h3>A slider, a spin box, a progress bar</h3>')
+add('''<p>One idea wearing three faces: a value between two bounds. The first two raise
+<code>CBE:ValueChanged</code> as the user moves them; a progress bar is yours to drive.</p>''')
+add(code(S_VALUES))
+add(note('warn', 'A drag fires on every step',
+   '<p>Keep that handler cheap &mdash; store the value and do the heavy work afterwards, or a slider will '
+   'repaint your report once per pixel.</p>'))
+
+add('<h3>A gallery</h3>')
+add('''<p>A grid of picture choices &mdash; what a ribbon group wants when a row of buttons will not do.</p>''')
+add(code(S_GALLERY))
+add('''<p>A ribbon group is a fixed height, so a gallery too tall for it is <b>shrunk to fit</b> rather
+than dropped. Set the cell height to what you actually want, then look at it.</p>''')
+
+add('<h3>Collapse the ribbon</h3>')
+add('''<p>A small chevron sits at the end of the tab strip &mdash; up while the ribbon is open, down once
+it is collapsed. Double-clicking a tab does the same thing, and clicking a tab while collapsed opens it
+there.</p>''')
+add(code(S_RIBMIN))
+
 add('<h2 id="trouble"><span class="k">Recipes</span>When it misbehaves</h2>')
 add('''<div class="tw"><table><thead><tr><th>What you see</th><th>What it is</th></tr></thead><tbody>
 <tr><td>No bars at all</td><td>the DLL is not beside the EXE, or <code>Init</code> returned 0 &mdash; check its result</td></tr>
@@ -740,6 +833,9 @@ add('''<div class="tw"><table><thead><tr><th>What you see</th><th>What it is</th
 <tr><td>The frame's toolbar vanishes when a procedure opens</td><td><code>NOMERGE</code> on the frame's <code>TOOLBAR</code>. Clear it</td></tr>
 <tr><td><code>Unresolved External CB_...</code></td><td>a second <code>commandbar.lib</code> is shadowing the installed one</td></tr>
 <tr><td>AppGen hangs on a template button</td><td>a group returned text where a number was expected &mdash; <code>&#39;0&#39;</code> is true to <code>#IF</code></td></tr>
+<tr><td>A slider, spin, progress or gallery draws as a plain button with its text on it</td><td>an old <code>commandbar.dll</code>. <code>CB_AddItem</code> used to reject any type above <code>CBI_SPACE</code> and hand back a button instead &mdash; generated code fine, picture wrong. The DLL alone fixes it</td></tr>
+<tr><td>A slider moves but nothing happens in a generated app</td><td>older generated code: the pump only handled <code>CBE:Command</code>. It takes <code>CBE:ValueChanged</code> too now, so regenerate</td></tr>
+<tr><td>AppGen hangs on a template button</td><td>a group returned text where a number was expected &mdash; <code>&#39;0&#39;</code> is true to <code>#IF</code> and to <code>#LOOP,WHILE</code></td></tr>
 <tr><td>A frame child sits in the wrong place</td><td>set <code>CB_HOSTLOG=1</code> and run again; every host-child move is traced to <code>%TEMP%\\cbhost.log</code></td></tr>
 </tbody></table></div>''')
 
@@ -763,11 +859,11 @@ PAGE = '''<title>ClaCommandBar Reference</title>
     <p class="sub">Command bars, ribbons and popup menus for Clarion &mdash; a Direct2D engine, an ABC-style
     class, and the templates that wire them up. This is the programmer&rsquo;s reference for all three.</p>
     <div class="chips">
-      <span class="chip"><b>84</b> exports</span>
+      <span class="chip"><b>__NEXPORT__</b> exports</span>
       <span class="chip"><b>__NMETH__</b> class methods</span>
       <span class="chip"><b>4</b> templates</span>
       <span class="chip"><b>11</b> themes</span>
-      <span class="chip"><b>12</b> item types</span>
+      <span class="chip"><b>__NTYPES__</b> item types</span>
     </div>
   </div></header>
   <div class="inner">__BODY__
@@ -783,6 +879,10 @@ out = (PAGE.replace('__CSS__', CSS)
            .replace('__NAV__', nav_html())
            .replace('__BODY__', ''.join(BODY))
            .replace('__NMETH__', str(len(CLASS)))
+           .replace('__NEXPORT__', str(sum(len(x['funcs']) for x in API)))
+           .replace('__NTYPES__', str(len([c for x in API for c in x['consts']
+                                           if c['name'].startswith('CBI_')
+                                           and c['name'] != 'CBI_LAST'])))
            .replace('__JS__', JS))
 io.open('docs/reference.html', 'w', encoding='utf-8', newline='\n').write(out)
 print('docs/reference.html  %.1f KB' % (len(out) / 1024.0))
