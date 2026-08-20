@@ -506,14 +506,92 @@ static bool WicToImage(IWICBitmapSource* src, CBImage* out)
     return ok;
 }
 
+/*  Where a Clarion app actually keeps its icons.
+
+    An image is named in the template by file name alone - "NEW.ICO" - and
+    the raw name only opens if it happens to sit in the CURRENT DIRECTORY,
+    which is wherever the app was started from rather than where it lives.
+    So a bare name is looked for next to the EXE and in an images folder
+    beside it as well.  A name with a path in it is taken as given. */
+static bool CBTryOpenImage(const wchar_t* file, IWICBitmapDecoder** dec)
+{
+    return SUCCEEDED(g_wic->CreateDecoderFromFilename(
+               file, NULL, GENERIC_READ, WICDecodeMetadataCacheOnLoad, dec))
+           && *dec;
+}
+
+static bool CBOpenImageFile(const wchar_t* file, IWICBitmapDecoder** dec)
+{
+    *dec = NULL;
+    if (CBTryOpenImage(file, dec)) return true;
+
+    if (wcschr(file, L'\\') || wcschr(file, L'/') || wcschr(file, L':'))
+        return false;                       /* a path was given - trust it */
+
+    wchar_t exe[MAX_PATH];
+    DWORD n = GetModuleFileNameW(NULL, exe, MAX_PATH);
+    if (!n || n >= MAX_PATH) return false;
+    wchar_t* slash = wcsrchr(exe, L'\\');
+    if (!slash) return false;
+    *(slash + 1) = 0;
+
+    std::wstring beside = std::wstring(exe) + file;
+    if (CBTryOpenImage(beside.c_str(), dec)) return true;
+
+    std::wstring inImages = std::wstring(exe) + L"images\\" + file;
+    if (CBTryOpenImage(inImages.c_str(), dec)) return true;
+
+    return false;
+}
+
+/*  An image ADDED TO THE CLARION PROJECT is linked into the EXE, not left
+    on disk, so there is no file to open at all.  Clarion names those
+    resources after the file: NEW.ICO goes in as an RT_GROUP_ICON called
+    NEW_ICO - upper case, the dot turned into an underscore.  Read off a
+    real application:
+
+        CLOSED_ICO  DELETE_ICO  EDIT_ICO  FIND_ICO  HELP_ICO
+        INSERT_ICO  OPEN_ICO    VCRFIRST_ICO  VCRNEXT_ICO  MARK_ICO
+
+    which is why a plain "NEW.ICO" in the template is enough: add the icon
+    to the project and it is found here whatever the working directory. */
+static bool CBLoadResourceImage(const wchar_t* file, CBImage* out)
+{
+    const wchar_t* name = file;
+    for (const wchar_t* p = file; *p; ++p)
+        if (*p == L'\\' || *p == L'/' || *p == L':') name = p + 1;
+    if (!*name) return false;
+
+    std::wstring res;
+    bool icon = false;
+    for (const wchar_t* p = name; *p; ++p)
+    {
+        wchar_t c = *p;
+        if (c == L'.') c = L'_';
+        res += (wchar_t)towupper(c);
+    }
+    if (res.size() > 4 && res.compare(res.size() - 4, 4, L"_ICO") == 0) icon = true;
+
+    HMODULE app = GetModuleHandleW(NULL);
+    if (!app) return false;
+    /* RT_GROUP_ICON / RT_BITMAP are ANSI macros - spell them wide. */
+    LPCWSTR kind = icon ? MAKEINTRESOURCEW(14) : MAKEINTRESOURCEW(2);
+    if (!FindResourceW(app, res.c_str(), kind))
+        return false;
+
+    HANDLE h = LoadImageW(app, res.c_str(),
+                          icon ? IMAGE_ICON : IMAGE_BITMAP,
+                          0, 0, LR_DEFAULTSIZE | LR_SHARED);
+    if (!h) return false;
+    return CBDecodeHandle(h, icon, out);
+}
+
 bool CBDecodeFile(const wchar_t* file, CBImage* out)
 {
     if (!g_wic || !file || !*file) return false;
     IWICBitmapDecoder* dec = NULL;
-    if (FAILED(g_wic->CreateDecoderFromFilename(file, NULL, GENERIC_READ,
-                                                WICDecodeMetadataCacheOnLoad,
-                                                &dec)) || !dec)
-        return false;
+    if (!CBOpenImageFile(file, &dec))
+        return CBLoadResourceImage(file, out);
     IWICBitmapFrameDecode* frame = NULL;
     bool ok = false;
     if (SUCCEEDED(dec->GetFrame(0, &frame)) && frame)

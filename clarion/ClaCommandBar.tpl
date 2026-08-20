@@ -689,6 +689,14 @@ CBPump:%ActiveTemplateInstance ROUTINE
     #DISPLAY('A menu bar is just a bar - tick "Is the menu bar" and put Menu')
     #DISPLAY('title items on it.  A RIBBON is a bar too: tick "Is a ribbon"')
     #DISPLAY('and fill it in from the Ribbon tab instead of the Items tab.')
+    #DISPLAY('')
+    #DISPLAY('In a hurry?  This fills in a whole toolbar - New, Open, Save,')
+    #DISPLAY('Print, Cut, Copy, Paste, Undo, Redo, a search box, Find and')
+    #DISPLAY('Help - with icons, tooltips and the matching Ctrl shortcuts.')
+    #DISPLAY('They are ordinary entries afterwards: rename them, drop the')
+    #DISPLAY('ones you do not want, give the rest their embed code.')
+    #BUTTON('Add a &standard toolbar'),WHENACCEPTED(%CBAddPresetBar()),AT(,,140)
+    #ENDBUTTON
     #BUTTON('&Bars...'),MULTI(%CBBarList,%CBBarName & '  (' & %CBBarDock & ', row ' & %CBBarRow & ')'),INLINE
       #PROMPT('&Name (the Items list refers to this):',@s32),%CBBarName,REQ
       #PROMPT('&Caption (shown when floating):',@s64),%CBBarTitle
@@ -718,6 +726,13 @@ CBPump:%ActiveTemplateInstance ROUTINE
     #DISPLAY('')
     #DISPLAY('Mark an item "Image above the text" and it becomes the big')
     #DISPLAY('button; everything beside it stacks three-deep in small rows.')
+    #DISPLAY('')
+    #DISPLAY('This builds the lot in one go: a ribbon bar with Home, Data and')
+    #DISPLAY('View tabs, groups inside them (Clipboard, Records, Editing,')
+    #DISPLAY('File, Report, Show, Window) and items with icons - the first')
+    #DISPLAY('in each group as the big button.')
+    #BUTTON('Add a standard &ribbon'),WHENACCEPTED(%CBAddPresetRibbon()),AT(,,140)
+    #ENDBUTTON
     #BUTTON('Ribbon &tabs...'),MULTI(%CBTabList,%CBTabBar & ' : ' & %CBTabName & '  "' & %CBTabText & '"'),INLINE
       #PROMPT('On this &bar (a bar marked "Is a ribbon"):',@s32),%CBTabBar,REQ
       #PROMPT('&Name (the Groups list refers to this):',@s32),%CBTabName,REQ
@@ -741,6 +756,18 @@ CBPump:%ActiveTemplateInstance ROUTINE
     #DISPLAY('name here, put items in it on the Items tab, and hang it off a')
     #DISPLAY('Menu title / Drop button / Split button - or leave it loose and')
     #DISPLAY('call CB.PopupMenu(CBMnu:<instance>:<name>) for a context menu.')
+    #DISPLAY('')
+    #DISPLAY('Pick a preset and press the button for a menu already filled')
+    #DISPLAY('in, with icons and shortcut text:')
+    #DISPLAY('')
+    #DISPLAY('   File         New / Open / Save / Save As / Print / Exit')
+    #DISPLAY('   Edit         Undo / Redo / Cut / Copy / Paste / Select all')
+    #DISPLAY('   Browse row   Insert / Change / Delete / Refresh / Print list')
+    #DISPLAY('   View         Toolbar and Status bar ticks, Zoom, Refresh')
+    #DISPLAY('   Help         Contents / Search / About')
+    #PROMPT('&Preset:',DROP('File|Edit|Browse row|View|Help')),%CBMenuPreset,DEFAULT('File')
+    #BUTTON('Add this &preset menu'),WHENACCEPTED(%CBAddPresetMenu()),AT(,,140)
+    #ENDBUTTON
     #BUTTON('&Menus...'),MULTI(%CBMenuList,%CBMenuName),INLINE
       #PROMPT('&Name:',@s32),%CBMenuName,REQ
     #ENDBUTTON
@@ -1350,6 +1377,331 @@ CBFit:%ActiveTemplateInstance ROUTINE
 #!-----------------------------------------------------------------------------
 #GROUP(%CBStyleNumber)
   #RETURN(%CBStyleTooltips + 2 * %CBStyleChevron + 4 * %CBStyleFlat + 8 * %CBStyleHotText + 16 * %CBStyleMenuIcons)
+#!=============================================================================
+#! PRESETS - the "add a standard ..." buttons on the Bars, Ribbon and Menus
+#! tabs.  Every one of these runs at DESIGN time and fills the very same
+#! prompt lists you would otherwise type in by hand, so anything a preset
+#! makes can be renamed, reordered or deleted afterwards like any other
+#! entry.  Nothing here is special-cased in the generator.
+#!
+#! Icons are named by plain file name - NEW.ICO.  Add the icons to the
+#! application's project and Clarion links them into the EXE, where the DLL
+#! finds them by resource name (NEW.ICO -> NEW_ICO); a copy sitting next to
+#! the EXE, or in an images folder beside it, is found too.
+#!=============================================================================
+#!
+#!-----------------------------------------------------------------------------
+#! %CBNextCmd - the next free command id, so a preset never collides with
+#! items already on the window.  Presets start at 1000.
+#!-----------------------------------------------------------------------------
+#GROUP(%CBNextCmd),AUTO
+  #DECLARE(%CBHighCmd)
+  #SET(%CBHighCmd,999)
+  #FOR(%CBItemList)
+    #IF(%CBItemCmd > %CBHighCmd)
+      #SET(%CBHighCmd,%CBItemCmd)
+    #ENDIF
+  #ENDFOR
+  #RETURN(%CBHighCmd + 1)
+#!
+#!-----------------------------------------------------------------------------
+#! %CBNameTaken / %CBFreeName - names become variables in the generated
+#! source, so they have to be unique.  Pressing a preset button twice gives
+#! Standard2, Ribbon2, FileMenu2 and so on rather than a duplicate.
+#!-----------------------------------------------------------------------------
+#GROUP(%CBNameTaken,%pName),AUTO
+  #FOR(%CBBarList)
+    #IF(UPPER(%CBBarName) = UPPER(%pName))
+      #RETURN(1)
+    #ENDIF
+  #ENDFOR
+  #FOR(%CBMenuList)
+    #IF(UPPER(%CBMenuName) = UPPER(%pName))
+      #RETURN(1)
+    #ENDIF
+  #ENDFOR
+  #FOR(%CBTabList)
+    #IF(UPPER(%CBTabName) = UPPER(%pName))
+      #RETURN(1)
+    #ENDIF
+  #ENDFOR
+  #FOR(%CBGroupList)
+    #IF(UPPER(%CBGroupName) = UPPER(%pName))
+      #RETURN(1)
+    #ENDIF
+  #ENDFOR
+  #RETURN(0)
+#!
+#GROUP(%CBFreeName,%pBase),AUTO
+  #DECLARE(%CBTryName)
+  #DECLARE(%CBTryNum)
+  #SET(%CBTryName,%pBase)
+  #SET(%CBTryNum,1)
+  #LOOP,WHILE(%CBNameTaken(%CBTryName))
+    #SET(%CBTryNum,%CBTryNum + 1)
+    #SET(%CBTryName,%pBase & %CBTryNum)
+  #ENDLOOP
+  #RETURN(%CBTryName)
+#!
+#!-----------------------------------------------------------------------------
+#! %CBUseImage - name an icon on the Images tab, once.  Called again with the
+#! same name it does nothing, so two presets can share NEW.ICO.
+#!-----------------------------------------------------------------------------
+#GROUP(%CBUseImage,%pName,%pFile),AUTO
+  #FOR(%CBImageList)
+    #IF(UPPER(%CBImageName) = UPPER(%pName))
+      #RETURN
+    #ENDIF
+  #ENDFOR
+  #ADD(%CBImageList,ITEMS(%CBImageList)+1)
+  #SET(%CBImageName,%pName)
+  #SET(%CBImageFile,%pFile)
+#!
+#GROUP(%CBStdIcons),AUTO
+  #INSERT(%CBUseImage,'New','NEW.ICO')
+  #INSERT(%CBUseImage,'Open','OPEN.ICO')
+  #INSERT(%CBUseImage,'Save','SAVE.ICO')
+  #INSERT(%CBUseImage,'Print','PRINT.ICO')
+  #INSERT(%CBUseImage,'Cut','CUT.ICO')
+  #INSERT(%CBUseImage,'Copy','COPY.ICO')
+  #INSERT(%CBUseImage,'Paste','PASTE.ICO')
+  #INSERT(%CBUseImage,'Undo','UNDO.ICO')
+  #INSERT(%CBUseImage,'Redo','REDO.ICO')
+  #INSERT(%CBUseImage,'Find','FIND.ICO')
+  #INSERT(%CBUseImage,'Insert','INSERT.ICO')
+  #INSERT(%CBUseImage,'Change','EDIT.ICO')
+  #INSERT(%CBUseImage,'Delete','DELETE.ICO')
+  #INSERT(%CBUseImage,'Refresh','REFRESH.ICO')
+  #INSERT(%CBUseImage,'Zoom','ZOOM.ICO')
+  #INSERT(%CBUseImage,'Help','HELP.ICO')
+  #INSERT(%CBUseImage,'About','ABOUT.ICO')
+  #INSERT(%CBUseImage,'Exit','EXIT.ICO')
+#!
+#!-----------------------------------------------------------------------------
+#! %CBPutItem - one item, with the fields a preset cares about.  Anything not
+#! set stays empty, which reads as "off" everywhere in the generator, so the
+#! caller can follow a #INSERT with a #SET to turn one flag on.
+#!-----------------------------------------------------------------------------
+#GROUP(%CBPutItem,%pIn,%pType,%pText,%pCmd,%pImage,%pTip),AUTO
+  #ADD(%CBItemList,ITEMS(%CBItemList)+1)
+  #SET(%CBItemContainer,%pIn)
+  #SET(%CBItemType,%pType)
+  #SET(%CBItemText,%pText)
+  #SET(%CBItemCmd,%pCmd)
+  #SET(%CBItemImage,%pImage)
+  #SET(%CBItemTooltip,%pTip)
+  #SET(%CBItemAction,'Embed code only')
+  #SET(%CBItemWidth,0)
+#!
+#GROUP(%CBPutSep,%pIn),AUTO
+  #INSERT(%CBPutItem,%pIn,'Separator','',0,'','')
+#!
+#GROUP(%CBPutRow,%pIn,%pText,%pCmd,%pImage,%pKey),AUTO
+  #INSERT(%CBPutItem,%pIn,'Button',%pText,%pCmd,%pImage,'')
+  #SET(%CBItemShortcut,%pKey)
+#!
+#GROUP(%CBPutBig,%pIn,%pText,%pCmd,%pImage,%pTip),AUTO
+  #INSERT(%CBPutItem,%pIn,'Button',%pText,%pCmd,%pImage,%pTip)
+  #SET(%CBItemTextBelow,1)
+#!
+#GROUP(%CBPutMenu,%pName),AUTO
+  #ADD(%CBMenuList,ITEMS(%CBMenuList)+1)
+  #SET(%CBMenuName,%pName)
+#!
+#GROUP(%CBPutTab,%pBar,%pName,%pText),AUTO
+  #ADD(%CBTabList,ITEMS(%CBTabList)+1)
+  #SET(%CBTabBar,%pBar)
+  #SET(%CBTabName,%pName)
+  #SET(%CBTabText,%pText)
+#!
+#GROUP(%CBPutGroup,%pTab,%pName,%pText),AUTO
+  #ADD(%CBGroupList,ITEMS(%CBGroupList)+1)
+  #SET(%CBGroupTab,%pTab)
+  #SET(%CBGroupName,%pName)
+  #SET(%CBGroupText,%pText)
+#!
+#GROUP(%CBPutAccel,%pKey,%pCmd),AUTO
+  #FOR(%CBAccelList)
+    #IF(UPPER(%CBAccelKey) = UPPER(%pKey))
+      #RETURN
+    #ENDIF
+  #ENDFOR
+  #ADD(%CBAccelList,ITEMS(%CBAccelList)+1)
+  #SET(%CBAccelKey,%pKey)
+  #SET(%CBAccelCmd,%pCmd)
+#!
+#!-----------------------------------------------------------------------------
+#! 1.  A standard toolbar - the row nearly every application starts with,
+#!     with the keyboard shortcuts that go with it.
+#!-----------------------------------------------------------------------------
+#GROUP(%CBAddPresetBar),AUTO
+  #DECLARE(%CBpBar)
+  #DECLARE(%CBpCmd)
+  #INSERT(%CBStdIcons)
+  #SET(%CBpBar,%CBFreeName('Standard'))
+  #SET(%CBpCmd,%CBNextCmd())
+  #ADD(%CBBarList,ITEMS(%CBBarList)+1)
+  #SET(%CBBarName,%CBpBar)
+  #SET(%CBBarTitle,'Standard')
+  #SET(%CBBarDock,'Top')
+  #SET(%CBBarRow,0)
+  #SET(%CBBarOffset,0)
+  #SET(%CBBarGripper,1)
+  #SET(%CBBarFloatable,1)
+  #INSERT(%CBPutItem,%CBpBar,'Button','&New',%CBpCmd,'New','New (Ctrl+N)')
+  #INSERT(%CBPutItem,%CBpBar,'Button','&Open',%CBpCmd + 1,'Open','Open (Ctrl+O)')
+  #INSERT(%CBPutItem,%CBpBar,'Button','&Save',%CBpCmd + 2,'Save','Save (Ctrl+S)')
+  #INSERT(%CBPutSep,%CBpBar)
+  #INSERT(%CBPutItem,%CBpBar,'Button','&Print',%CBpCmd + 3,'Print','Print (Ctrl+P)')
+  #INSERT(%CBPutSep,%CBpBar)
+  #INSERT(%CBPutItem,%CBpBar,'Button','Cu&t',%CBpCmd + 4,'Cut','Cut (Ctrl+X)')
+  #INSERT(%CBPutItem,%CBpBar,'Button','&Copy',%CBpCmd + 5,'Copy','Copy (Ctrl+C)')
+  #INSERT(%CBPutItem,%CBpBar,'Button','P&aste',%CBpCmd + 6,'Paste','Paste (Ctrl+V)')
+  #INSERT(%CBPutSep,%CBpBar)
+  #INSERT(%CBPutItem,%CBpBar,'Button','&Undo',%CBpCmd + 7,'Undo','Undo (Ctrl+Z)')
+  #INSERT(%CBPutItem,%CBpBar,'Button','&Redo',%CBpCmd + 8,'Redo','Redo (Ctrl+Y)')
+  #INSERT(%CBPutSep,%CBpBar)
+  #INSERT(%CBPutItem,%CBpBar,'Edit box','',%CBpCmd + 9,'','What to look for')
+  #SET(%CBItemWidth,160)
+  #INSERT(%CBPutItem,%CBpBar,'Button','&Find',%CBpCmd + 10,'Find','Find (Ctrl+F)')
+  #INSERT(%CBPutItem,%CBpBar,'Flexible space','',0,'','')
+  #INSERT(%CBPutItem,%CBpBar,'Button','&Help',%CBpCmd + 11,'Help','Help (F1)')
+  #INSERT(%CBPutAccel,'CtrlN',%CBpCmd)
+  #INSERT(%CBPutAccel,'CtrlO',%CBpCmd + 1)
+  #INSERT(%CBPutAccel,'CtrlS',%CBpCmd + 2)
+  #INSERT(%CBPutAccel,'CtrlP',%CBpCmd + 3)
+  #INSERT(%CBPutAccel,'CtrlF',%CBpCmd + 10)
+  #INSERT(%CBPutAccel,'F1Key',%CBpCmd + 11)
+#!
+#!-----------------------------------------------------------------------------
+#! 2.  A standard ribbon - a bar marked "is a ribbon", three tabs, groups
+#!     inside them, and the first item of each group as the big button.
+#!-----------------------------------------------------------------------------
+#GROUP(%CBAddPresetRibbon),AUTO
+  #DECLARE(%CBpBar)
+  #DECLARE(%CBpCmd)
+  #DECLARE(%CBpTab)
+  #DECLARE(%CBpGrp)
+  #INSERT(%CBStdIcons)
+  #SET(%CBpBar,%CBFreeName('Ribbon'))
+  #SET(%CBpCmd,%CBNextCmd())
+  #ADD(%CBBarList,ITEMS(%CBBarList)+1)
+  #SET(%CBBarName,%CBpBar)
+  #SET(%CBBarTitle,'Ribbon')
+  #SET(%CBBarDock,'Top')
+  #SET(%CBBarRow,0)
+  #SET(%CBBarOffset,0)
+  #SET(%CBBarRibbon,1)
+  #SET(%CBBarLargeIcons,1)
+  #SET(%CBBarGripper,0)
+  #SET(%CBBarFloatable,0)
+  #SET(%CBpTab,%CBFreeName('Home'))
+  #INSERT(%CBPutTab,%CBpBar,%CBpTab,'Home')
+  #SET(%CBpGrp,%CBFreeName('Clipboard'))
+  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Clipboard')
+  #INSERT(%CBPutBig,%CBpGrp,'Paste',%CBpCmd,'Paste','Paste (Ctrl+V)')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Cut',%CBpCmd + 1,'Cut','Cut (Ctrl+X)')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Copy',%CBpCmd + 2,'Copy','Copy (Ctrl+C)')
+  #SET(%CBpGrp,%CBFreeName('Records'))
+  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Records')
+  #INSERT(%CBPutBig,%CBpGrp,'Insert',%CBpCmd + 3,'Insert','Add a record')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Change',%CBpCmd + 4,'Change','Edit the record')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Delete',%CBpCmd + 5,'Delete','Delete the record')
+  #SET(%CBpGrp,%CBFreeName('Editing'))
+  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Editing')
+  #INSERT(%CBPutBig,%CBpGrp,'Find',%CBpCmd + 6,'Find','Find (Ctrl+F)')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Undo',%CBpCmd + 7,'Undo','Undo (Ctrl+Z)')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Redo',%CBpCmd + 8,'Redo','Redo (Ctrl+Y)')
+  #SET(%CBpTab,%CBFreeName('Data'))
+  #INSERT(%CBPutTab,%CBpBar,%CBpTab,'Data')
+  #SET(%CBpGrp,%CBFreeName('File'))
+  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'File')
+  #INSERT(%CBPutBig,%CBpGrp,'Open',%CBpCmd + 9,'Open','Open (Ctrl+O)')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','New',%CBpCmd + 10,'New','New (Ctrl+N)')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Save',%CBpCmd + 11,'Save','Save (Ctrl+S)')
+  #SET(%CBpGrp,%CBFreeName('Report'))
+  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Report')
+  #INSERT(%CBPutBig,%CBpGrp,'Print',%CBpCmd + 12,'Print','Print (Ctrl+P)')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Refresh',%CBpCmd + 13,'Refresh','Read the data again')
+  #SET(%CBpTab,%CBFreeName('View'))
+  #INSERT(%CBPutTab,%CBpBar,%CBpTab,'View')
+  #SET(%CBpGrp,%CBFreeName('Show'))
+  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Show')
+  #INSERT(%CBPutBig,%CBpGrp,'Zoom',%CBpCmd + 14,'Zoom','Zoom')
+  #INSERT(%CBPutItem,%CBpGrp,'Check box','Status bar',%CBpCmd + 15,'','Show the status bar')
+  #SET(%CBItemChecked,1)
+  #INSERT(%CBPutItem,%CBpGrp,'Check box','Toolbar',%CBpCmd + 16,'','Show the toolbar')
+  #SET(%CBItemChecked,1)
+  #SET(%CBpGrp,%CBFreeName('Window'))
+  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Window')
+  #INSERT(%CBPutBig,%CBpGrp,'About',%CBpCmd + 17,'About','About this program')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Help',%CBpCmd + 18,'Help','Help (F1)')
+#!
+#!-----------------------------------------------------------------------------
+#! 3.  A popup menu, from one of five presets.
+#!-----------------------------------------------------------------------------
+#GROUP(%CBAddPresetMenu),AUTO
+  #DECLARE(%CBpMnu)
+  #DECLARE(%CBpCmd)
+  #INSERT(%CBStdIcons)
+  #SET(%CBpCmd,%CBNextCmd())
+  #CASE(%CBMenuPreset)
+  #OF('File')
+    #SET(%CBpMnu,%CBFreeName('FileMenu'))
+    #INSERT(%CBPutMenu,%CBpMnu)
+    #INSERT(%CBPutRow,%CBpMnu,'&New',%CBpCmd,'New','Ctrl+N')
+    #INSERT(%CBPutRow,%CBpMnu,'&Open...',%CBpCmd + 1,'Open','Ctrl+O')
+    #INSERT(%CBPutRow,%CBpMnu,'&Save',%CBpCmd + 2,'Save','Ctrl+S')
+    #INSERT(%CBPutRow,%CBpMnu,'Save &As...',%CBpCmd + 3,'','')
+    #INSERT(%CBPutSep,%CBpMnu)
+    #INSERT(%CBPutRow,%CBpMnu,'&Print...',%CBpCmd + 4,'Print','Ctrl+P')
+    #INSERT(%CBPutSep,%CBpMnu)
+    #INSERT(%CBPutRow,%CBpMnu,'E&xit',%CBpCmd + 5,'Exit','')
+  #OF('Edit')
+    #SET(%CBpMnu,%CBFreeName('EditMenu'))
+    #INSERT(%CBPutMenu,%CBpMnu)
+    #INSERT(%CBPutRow,%CBpMnu,'&Undo',%CBpCmd,'Undo','Ctrl+Z')
+    #INSERT(%CBPutRow,%CBpMnu,'&Redo',%CBpCmd + 1,'Redo','Ctrl+Y')
+    #INSERT(%CBPutSep,%CBpMnu)
+    #INSERT(%CBPutRow,%CBpMnu,'Cu&t',%CBpCmd + 2,'Cut','Ctrl+X')
+    #INSERT(%CBPutRow,%CBpMnu,'&Copy',%CBpCmd + 3,'Copy','Ctrl+C')
+    #INSERT(%CBPutRow,%CBpMnu,'&Paste',%CBpCmd + 4,'Paste','Ctrl+V')
+    #INSERT(%CBPutSep,%CBpMnu)
+    #INSERT(%CBPutRow,%CBpMnu,'Select &all',%CBpCmd + 5,'','Ctrl+A')
+  #OF('Browse row')
+    #SET(%CBpMnu,%CBFreeName('RowMenu'))
+    #INSERT(%CBPutMenu,%CBpMnu)
+    #INSERT(%CBPutRow,%CBpMnu,'&Insert',%CBpCmd,'Insert','Ins')
+    #INSERT(%CBPutRow,%CBpMnu,'&Change',%CBpCmd + 1,'Change','Enter')
+    #SET(%CBItemDefault,1)
+    #INSERT(%CBPutRow,%CBpMnu,'&Delete',%CBpCmd + 2,'Delete','Del')
+    #INSERT(%CBPutSep,%CBpMnu)
+    #INSERT(%CBPutRow,%CBpMnu,'&Refresh',%CBpCmd + 3,'Refresh','F5')
+    #INSERT(%CBPutSep,%CBpMnu)
+    #INSERT(%CBPutRow,%CBpMnu,'&Print list...',%CBpCmd + 4,'Print','')
+  #OF('View')
+    #SET(%CBpMnu,%CBFreeName('ViewMenu'))
+    #INSERT(%CBPutMenu,%CBpMnu)
+    #INSERT(%CBPutItem,%CBpMnu,'Button','&Toolbar',%CBpCmd,'','')
+    #SET(%CBItemAutoCheck,1)
+    #SET(%CBItemChecked,1)
+    #INSERT(%CBPutItem,%CBpMnu,'Button','&Status bar',%CBpCmd + 1,'','')
+    #SET(%CBItemAutoCheck,1)
+    #SET(%CBItemChecked,1)
+    #INSERT(%CBPutSep,%CBpMnu)
+    #INSERT(%CBPutRow,%CBpMnu,'Zoom &in',%CBpCmd + 2,'Zoom','Ctrl++')
+    #INSERT(%CBPutRow,%CBpMnu,'Zoom &out',%CBpCmd + 3,'','Ctrl+-')
+    #INSERT(%CBPutSep,%CBpMnu)
+    #INSERT(%CBPutRow,%CBpMnu,'&Refresh',%CBpCmd + 4,'Refresh','F5')
+  #ELSE
+    #SET(%CBpMnu,%CBFreeName('HelpMenu'))
+    #INSERT(%CBPutMenu,%CBpMnu)
+    #INSERT(%CBPutRow,%CBpMnu,'&Contents',%CBpCmd,'Help','F1')
+    #INSERT(%CBPutRow,%CBpMnu,'&Search for help on...',%CBpCmd + 1,'Find','')
+    #INSERT(%CBPutSep,%CBpMnu)
+    #INSERT(%CBPutRow,%CBpMnu,'&About...',%CBpCmd + 2,'About','')
+  #ENDCASE
+#!
 #!=============================================================================
 #! End of ClaCommandBar.tpl
 #!=============================================================================

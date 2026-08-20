@@ -30,6 +30,20 @@ toolbar disappear as soon as any MDI procedure opens. The frame's toolbar and
 MDI client are moved out from under the bars either way, including across the
 toolbar Clarion rebuilds on every merge.
 
+## One click gets you a starting point
+
+Three buttons in the template fill the lists in: **Add a standard toolbar** on
+the Bars tab (New / Open / Save / Print / Cut / Copy / Paste / Undo / Redo /
+search box / Find / Help, with icons, tooltips and Ctrl shortcuts), **Add a
+standard ribbon** on the Ribbon tab (Home, Data and View tabs with groups
+inside them), and **Add this preset menu** on the Menus tab — File, Edit,
+Browse row, View or Help. What they make is ordinary entries: rename, reorder
+or delete them, and fill in the embed points.
+
+Icons are named plainly (`NEW.ICO`). Add them to the application's project and
+Clarion links them into the EXE, where they are found by resource name — no
+loose files to deploy.
+
 ## What you get
 
 **Bars** dock top, bottom, left or right, stack in rows, sit side by side in a

@@ -385,6 +385,30 @@ say how tall it is:
 CommandBar.HostReserveBottom(23)     ! pixels; -1 goes back to measuring
 ```
 
+### 5b10. Presets - a bar, a ribbon or a menu in one click
+
+Three buttons fill the lists in for you. Everything they make is an ordinary
+entry afterwards: rename it, reorder it, delete what you do not want, and put
+your own code in the embed points.
+
+| Tab | Button | What you get |
+|-----|--------|--------------|
+| **Bars** | *Add a standard toolbar* | a docked bar named `Standard` — New, Open, Save, Print, Cut, Copy, Paste, Undo, Redo, a search box, Find, and Help pushed to the far end — with icons, tooltips and the matching `Ctrl+N/O/S/P/F` and `F1` shortcuts |
+| **Ribbon** | *Add a standard ribbon* | a bar marked *is a ribbon* named `Ribbon`, with **Home** (Clipboard, Records, Editing), **Data** (File, Report) and **View** (Show, Window) tabs, the first item of each group being the big button |
+| **Menus** | *Add this preset menu* | the popup named by the **Preset** drop beside it: **File**, **Edit**, **Browse row**, **View** or **Help** — with icons, shortcut text, and check marks where they belong |
+
+Press one twice and you get `Standard2`, `Ribbon2`, `FileMenu2` — names become
+variables in the generated source, so they are kept unique. Command ids carry
+on from the highest already in use, so a preset never collides with items you
+added yourself.
+
+**Icons.** Presets name the stock Clarion icons by plain file name —
+`NEW.ICO`, `OPEN.ICO`. **Add those icons to the application's project** and
+Clarion links them into the EXE; the manager finds them there by resource name
+(`NEW.ICO` becomes `NEW_ICO`, which is how Clarion stores them), so they work
+whatever directory the program is started from. A copy sitting next to the EXE,
+or in an `images` folder beside it, is found too.
+
 ### 5c. Putting your own controls under the bars
 
 The bars take space off the top / bottom / sides of the window. Whatever is
