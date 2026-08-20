@@ -413,9 +413,12 @@ or in an `images` folder beside it, is found too.
 
 Tick **Starts collapsed to its tabs** on a bar marked *Is a ribbon* and it
 opens showing the tab strip alone, giving the window back the rest of the
-height. The gestures are the ones Office taught everyone:
+height. There is a **small chevron button at the far end of the tab strip**, the one
+older ribbons put there: it points up while the ribbon is open, down once it
+is collapsed, and one click does either. The keyboard-free gestures work too:
 
-* **double-click a tab** — collapse it, and open it again
+* **the chevron button** — collapse, and open again
+* **double-click a tab** — the same thing
 * **click a tab while collapsed** — open it on that tab
 
 or say so yourself:

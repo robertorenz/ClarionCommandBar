@@ -1221,6 +1221,20 @@ void CBPaintRibbon(CBManager* m, CBContainer* c)
                   DWRITE_TEXT_ALIGNMENT_CENTER, true);
     }
 
+    /* ---- the collapse button at the end of the strip ---- */
+    if (!IsRectEmpty(&c->minRc))
+    {
+        if (c->hotMin)
+            FillBox(c, c->minRc, m->col[CBC_HOTBACK], rad);
+        const float cx = (float)((c->minRc.left + c->minRc.right) / 2);
+        const float cy = (float)((c->minRc.top + c->minRc.bottom) / 2);
+        /*  Pointing up while the ribbon is open - press it and the ribbon
+            goes up - and down once it is collapsed. */
+        DrawArrow(c, cx, cy, 8.0f,
+                  c->hotMin ? m->col[CBC_ITEMTEXTHOT] : m->col[CBC_CHEVRON],
+                  c->minimized ? 0 : 2);
+    }
+
     /* ---- the active tab's groups ---- */
     CBContainer* active = CBFindContainer(m, c->activeTab);
     if (active && active->kind == CBK_TAB)
@@ -2647,6 +2661,12 @@ LRESULT CALLBACK CBBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 c->hotTab = ht;
                 InvalidateRect(hwnd, NULL, FALSE);
             }
+            const bool onMin = CBRibbonMinHit(c, p);
+            if (onMin != c->hotMin)
+            {
+                c->hotMin = onMin;
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
         }
 
         int zone = 0;
@@ -2672,6 +2692,7 @@ LRESULT CALLBACK CBBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         c->hotItem = 0;
         c->hotZone = CBHIT_NONE;
         c->hotTab  = 0;
+        c->hotMin  = false;
         KillTimer(hwnd, CBTIMER_TIPSHOW);
         CBHideTip(m);
         InvalidateRect(hwnd, NULL, FALSE);
@@ -2749,6 +2770,12 @@ LRESULT CALLBACK CBBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 CBBeginDrag(m, c, sp);
                 return 0;
             }
+        }
+
+        if (CBRibbonMinHit(c, p))
+        {
+            CB_SetRibbonMinimized(m, c->id, c->minimized ? 0 : 1);
+            return 0;
         }
 
         if (c->style & CBBS_RIBBON)

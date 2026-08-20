@@ -1965,6 +1965,20 @@ void CBLayoutRibbon(CBManager* m, CBContainer* c, int availW)
         if (!c->activeTab) c->activeTab = tab->id;
     }
 
+    /*  The little collapse button, at the far end of the tab strip - the
+        one older ribbons put there.  Laid out before the early return so
+        it is still there to click when the ribbon is collapsed. */
+    {
+        const int barW = (availW > 0) ? availW : (x + padX + (int)(40 * m->dpiScale));
+        const int side = tabH - (int)(10 * m->dpiScale);
+        const int sz   = (side < (int)(12 * m->dpiScale)) ? (int)(12 * m->dpiScale) : side;
+        c->minRc.right  = barW - padX - (int)(4 * m->dpiScale);
+        c->minRc.left   = c->minRc.right - sz;
+        c->minRc.top    = padY + (tabH - sz) / 2;
+        c->minRc.bottom = c->minRc.top + sz;
+        if (c->minRc.left < x) SetRectEmpty(&c->minRc);   /* no room for it */
+    }
+
     const int contentTop = padY + tabH;
 
     /*  Collapsed: the tab strip is the whole bar.  The groups keep their
@@ -2132,6 +2146,13 @@ int CBAPI CB_GetRibbonMinimized(HCB cb, int bar)
     CBManager* m = (CBManager*)cb;
     CBContainer* b = CBFindContainer(m, bar);
     return (b && b->kind == CBK_BAR && b->minimized) ? 1 : 0;
+}
+
+/* Is the point on the ribbon's collapse button? */
+bool CBRibbonMinHit(CBContainer* c, POINT pt)
+{
+    return c && (c->style & CBBS_RIBBON) && !IsRectEmpty(&c->minRc) &&
+           PtInRect(&c->minRc, pt);
 }
 
 /* The tab under a point, or 0. */
