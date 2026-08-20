@@ -156,6 +156,11 @@ Nine tabs. The three that matter are **Bars**, **Menus** and **Items**:
    *Command id* is the number you act on. **A name that resolves to nothing is
    a generate-time `#ERROR`**, not a silently missing item.
 
+   Each item's own dialog is tabbed — **General**, **Action**, **Settings**,
+   **In a menu**, **State and layout** — and Settings shows only the box for
+   the type you chose, so a plain button does not have to scroll past a
+   gallery's cells to reach anything.
+
 Every distinct command id gets **its own embed point**, so the generated
 dispatch is:
 

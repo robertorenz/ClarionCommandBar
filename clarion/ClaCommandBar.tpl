@@ -887,99 +887,101 @@ CBPump:%ActiveTemplateInstance ROUTINE
     #DISPLAY('want to act on - each distinct id gets its own embed point, and')
     #DISPLAY('the Action below runs just before that embed.')
     #BUTTON('&Items...'),MULTI(%CBItemList,%CBItemContainer & ' : ' & %CBItemType & '  ' & %CBItemText & CHOOSE(%CBItemCmd = 0,'',' [' & %CBItemCmd & ']')),INLINE
-      #PROMPT('&Put it in (a bar, menu or ribbon group name):',@s32),%CBItemContainer,REQ
-      #PROMPT('&Type:',DROP('Button|Toggle button|Drop button|Split button|Separator|Label|Edit box|Combo box|Check box|Colour button|Menu title|Flexible space|Slider|Spin box|Progress bar|Gallery')),%CBItemType,DEFAULT('Button')
-      #PROMPT('Te&xt (& marks the accelerator letter):',@s64),%CBItemText
-      #PROMPT('&Command id (0 = it raises nothing):',SPIN(@n_9,0,999999999,1)),%CBItemCmd,DEFAULT(0)
-      #PROMPT('&Image (a name from the Images tab):',@s32),%CBItemImage
-      #PROMPT('T&ooltip:',@s128),%CBItemTooltip
-      #BOXED('What it does')
-        #PROMPT('&Action:',DROP('Embed code only|Call a procedure|Do a routine|Emulate a control|Post an event|Close the window')),%CBItemAction,DEFAULT('Embed code only')
-        #ENABLE(%CBItemAction = 'Call a procedure')
-          #PROMPT('&Procedure:',PROCEDURE),%CBItemProc
-          #PROMPT('P&arameters:',@s128),%CBItemProcParms
-        #ENDENABLE
-        #ENABLE(%CBItemAction = 'Do a routine')
-          #PROMPT('&Routine name:',@s64),%CBItemRoutine
-          #DISPLAY('The ROUTINE has to exist in this procedure.')
-        #ENDENABLE
-        #ENABLE(%CBItemAction = 'Emulate a control')
-          #PROMPT('&Control:',CONTROL),%CBItemControl
-          #DISPLAY('POSTs EVENT:Accepted to that control, so its own embed')
-          #DISPLAY('code runs.  This is how you point a bar button at a BUTTON')
-          #DISPLAY('or a menu ITEM that is already on the window.')
-        #ENDENABLE
-        #ENABLE(%CBItemAction = 'Post an event')
-          #PROMPT('&Event:',@s48),%CBItemEvent,DEFAULT('EVENT:Accepted')
-          #PROMPT('To this &control (blank = the window):',CONTROL),%CBItemEventCtl
-        #ENDENABLE
-        #DISPLAY('Whatever the action, the embed point for this command still')
-        #DISPLAY('runs straight after it.')
-      #ENDBOXED
-      #ENABLE(%CBItemType='Drop button' OR %CBItemType='Split button' OR %CBItemType='Menu title' OR %CBItemType='Button')
-        #PROMPT('Opens this &menu (a name from the Menus tab):',@s32),%CBItemMenu
-      #ENDENABLE
-      #ENABLE(%CBItemType='Combo box')
-        #PROMPT('Choices, pipe se&parated (Red|Green|Blue):',@s255),%CBItemCombo
-        #PROMPT('Starting c&hoice (0 = the first one):',SPIN(@n3,0,255,1)),%CBItemComboSel,DEFAULT(0)
-      #ENDENABLE
-      #ENABLE(%CBItemType='Edit box')
-        #PROMPT('Starting &value:',@s128),%CBItemValue
-      #ENDENABLE
-      #ENABLE(%CBItemType='Slider' OR %CBItemType='Spin box' OR %CBItemType='Progress bar')
-        #PROMPT('&Lowest value:',SPIN(@n_7,-999999,999999,1)),%CBItemLo,DEFAULT(0)
-        #PROMPT('&Highest value:',SPIN(@n_7,-999999,999999,1)),%CBItemHi,DEFAULT(100)
-        #PROMPT('&Starting value:',SPIN(@n_7,-999999,999999,1)),%CBItemVal,DEFAULT(0)
-        #DISPLAY('   A slider and a spin box raise CBE:ValueChanged as the')
-        #DISPLAY('   user moves them, and the embed point for their command')
-        #DISPLAY('   id runs each time, with the new value in LastParam:')
-        #DISPLAY('')
-        #DISPLAY('      Zoom = CommandBar.LastParam')
-        #DISPLAY('')
-        #DISPLAY('   A slider fires on EVERY step of a drag, so keep that')
-        #DISPLAY('   embed cheap - store the value and act on it later if')
-        #DISPLAY('   the work is heavy.  A progress bar raises nothing; it')
-        #DISPLAY('   is yours to drive with SetItemNumber.')
-      #ENDENABLE
-      #ENABLE(%CBItemType='Gallery')
-        #PROMPT('&Columns:',SPIN(@n2,1,20,1)),%CBItemGalCols,DEFAULT(4)
-        #PROMPT('Cell &width:',SPIN(@n3,16,300,2)),%CBItemGalW,DEFAULT(56)
-        #PROMPT('Cell &height:',SPIN(@n3,16,300,2)),%CBItemGalH,DEFAULT(48)
-        #PROMPT('C&ells:',@s255),%CBItemGalCells
-        #DISPLAY('   Text=Image, separated by pipes, in the order they read:')
-        #DISPLAY('      Normal=New|Heading 1=Open|Title=Save')
-        #DISPLAY('   The image names come from the Images tab.  Leave the')
-        #DISPLAY('   =Image off a cell that has no picture.')
-        #DISPLAY('')
-        #DISPLAY('   Clicking a cell selects it and raises this item''s')
-        #DISPLAY('   command with the cell number (0 first) in LastParam.')
-        #DISPLAY('   Only the cells that FIT are drawn - a ribbon group is')
-        #DISPLAY('   only so tall, so size the cells to suit.')
-      #ENDENABLE
-      #ENABLE(%CBItemType='Colour button')
-        #PROMPT('Starting co&lour:',COLOR),%CBItemColor,DEFAULT(00000080H)
-      #ENDENABLE
-      #ENABLE(%CBItemType='Edit box' OR %CBItemType='Combo box' OR %CBItemType='Label' OR %CBItemType='Flexible space')
-        #PROMPT('&Width in pixels (0 = automatic):',SPIN(@n4,0,2000,10)),%CBItemWidth,DEFAULT(0)
-      #ENDENABLE
-      #BOXED('In a popup menu')
-        #PROMPT('&Shortcut text shown on the right ("Ctrl+S"):',@s32),%CBItemShortcut
-        #PROMPT('&Bold (the default item)',CHECK),%CBItemDefault,DEFAULT(0),AT(10)
-        #PROMPT('Check mark is a &radio dot',CHECK),%CBItemRadio,DEFAULT(0),AT(10)
-      #ENDBOXED
-      #BOXED('State and layout')
-        #PROMPT('Starts &checked / pressed',CHECK),%CBItemChecked,DEFAULT(0),AT(10)
-        #PROMPT('Starts disa&bled',CHECK),%CBItemDisabled,DEFAULT(0),AT(10)
-        #PROMPT('Starts h&idden',CHECK),%CBItemHidden,DEFAULT(0),AT(10)
-        #PROMPT('Clicking it flips its own check mark (&auto-check)',CHECK),%CBItemAutoCheck,DEFAULT(0),AT(10)
-        #DISPLAY('Auto-check is for MENU ROWS you want to behave like a')
-        #DISPLAY('setting.  Toggle buttons and check boxes always do it.')
-        #PROMPT('Push it to the &far end of the bar',CHECK),%CBItemRightAlign,DEFAULT(0),AT(10)
-        #PROMPT('Start a &new row after it',CHECK),%CBItemWrap,DEFAULT(0),AT(10)
-        #PROMPT('Image a&bove the text (the big ribbon button)',CHECK),%CBItemTextBelow,DEFAULT(0),AT(10)
-        #PROMPT('Ico&n only, never the text',CHECK),%CBItemIconOnly,DEFAULT(0),AT(10)
-        #PROMPT('Te&xt only, never the image',CHECK),%CBItemTextOnly,DEFAULT(0),AT(10)
-        #PROMPT('S&tretch to eat the leftover width',CHECK),%CBItemStretch,DEFAULT(0),AT(10)
+      #BOXED
+        #SHEET
+          #TAB('&General')
+            #PROMPT('&Put it in (a bar, menu or ribbon group name):',@s32),%CBItemContainer,REQ
+            #PROMPT('&Type:',DROP('Button|Toggle button|Drop button|Split button|Separator|Label|Edit box|Combo box|Check box|Colour button|Menu title|Flexible space|Slider|Spin box|Progress bar|Gallery')),%CBItemType,DEFAULT('Button')
+            #PROMPT('Te&xt (& marks the accelerator letter):',@s64),%CBItemText
+            #PROMPT('&Command id (0 = it raises nothing):',SPIN(@n_9,0,999999999,1)),%CBItemCmd,DEFAULT(0)
+            #PROMPT('&Image (a name from the Images tab):',@s32),%CBItemImage
+            #PROMPT('T&ooltip:',@s128),%CBItemTooltip
+            #PROMPT('&Width in pixels (0 = automatic):',SPIN(@n4,0,2000,10)),%CBItemWidth,DEFAULT(0)
+            #DISPLAY('')
+            #DISPLAY('Each distinct command id gets its own embed point, and')
+            #DISPLAY('the Action on the next tab runs just before it.')
+          #ENDTAB
+          #TAB('&Action')
+            #PROMPT('&Action:',DROP('Embed code only|Call a procedure|Do a routine|Emulate a control|Post an event|Close the window')),%CBItemAction,DEFAULT('Embed code only')
+            #ENABLE(%CBItemAction = 'Call a procedure')
+              #PROMPT('&Procedure:',PROCEDURE),%CBItemProc
+              #PROMPT('P&arameters:',@s128),%CBItemProcParms
+            #ENDENABLE
+            #ENABLE(%CBItemAction = 'Do a routine')
+              #PROMPT('&Routine name:',@s64),%CBItemRoutine
+              #DISPLAY('The ROUTINE has to exist in this procedure.')
+            #ENDENABLE
+            #ENABLE(%CBItemAction = 'Emulate a control')
+              #PROMPT('&Control:',CONTROL),%CBItemControl
+              #DISPLAY('POSTs EVENT:Accepted to that control, so its own embed')
+              #DISPLAY('code runs.  This is how you point a bar button at a')
+              #DISPLAY('BUTTON or a menu ITEM already on the window.')
+            #ENDENABLE
+            #ENABLE(%CBItemAction = 'Post an event')
+              #PROMPT('&Event:',@s48),%CBItemEvent,DEFAULT('EVENT:Accepted')
+              #PROMPT('To this &control (blank = the window):',CONTROL),%CBItemEventCtl
+            #ENDENABLE
+            #DISPLAY('')
+            #DISPLAY('Whatever the action, the embed point for this command')
+            #DISPLAY('still runs straight after it.')
+          #ENDTAB
+          #TAB('&Settings')
+            #BOXED('Opens a menu'),WHERE(%CBItemType='Drop button' OR %CBItemType='Split button' OR %CBItemType='Menu title' OR %CBItemType='Button')
+              #PROMPT('Opens this &menu (a name from the Menus tab):',@s32),%CBItemMenu
+            #ENDBOXED
+            #BOXED('Combo box'),WHERE(%CBItemType='Combo box')
+              #PROMPT('Choices, pipe se&parated (Red|Green|Blue):',@s255),%CBItemCombo
+              #PROMPT('Starting c&hoice (0 = the first one):',SPIN(@n3,0,255,1)),%CBItemComboSel,DEFAULT(0)
+            #ENDBOXED
+            #BOXED('Edit box'),WHERE(%CBItemType='Edit box')
+              #PROMPT('Starting &value:',@s128),%CBItemValue
+            #ENDBOXED
+            #BOXED('Colour button'),WHERE(%CBItemType='Colour button')
+              #PROMPT('Starting co&lour:',COLOR),%CBItemColor,DEFAULT(00000080H)
+            #ENDBOXED
+            #BOXED('Slider, spin box or progress bar'),WHERE(%CBItemType='Slider' OR %CBItemType='Spin box' OR %CBItemType='Progress bar')
+              #PROMPT('&Lowest value:',SPIN(@n_7,-999999,999999,1)),%CBItemLo,DEFAULT(0)
+              #PROMPT('&Highest value:',SPIN(@n_7,-999999,999999,1)),%CBItemHi,DEFAULT(100)
+              #PROMPT('&Starting value:',SPIN(@n_7,-999999,999999,1)),%CBItemVal,DEFAULT(0)
+              #DISPLAY('A slider and a spin box run this item''s embed on every')
+              #DISPLAY('change, with the value in LastParam - so keep it cheap.')
+              #DISPLAY('A progress bar raises nothing; drive it with')
+              #DISPLAY('SetItemNumber.')
+            #ENDBOXED
+            #BOXED('Gallery'),WHERE(%CBItemType='Gallery')
+              #PROMPT('&Columns:',SPIN(@n2,1,20,1)),%CBItemGalCols,DEFAULT(4)
+              #PROMPT('Cell &width:',SPIN(@n3,16,300,2)),%CBItemGalW,DEFAULT(56)
+              #PROMPT('Cell &height:',SPIN(@n3,16,300,2)),%CBItemGalH,DEFAULT(48)
+              #PROMPT('C&ells:',@s255),%CBItemGalCells
+              #DISPLAY('Text=Image, pipe separated, in the order they read:')
+              #DISPLAY('   Normal=New|Heading=Open|Title=Save')
+              #DISPLAY('A click raises this item''s command with the cell')
+              #DISPLAY('number (0 first) in LastParam.  Only the cells that')
+              #DISPLAY('FIT are drawn - size them to the group.')
+            #ENDBOXED
+          #ENDTAB
+          #TAB('In a &menu')
+            #DISPLAY('These only show when the item is a row in a popup menu.')
+            #DISPLAY('')
+            #PROMPT('&Shortcut text shown on the right ("Ctrl+S"):',@s32),%CBItemShortcut
+            #PROMPT('&Bold (the default item)',CHECK),%CBItemDefault,DEFAULT(0),AT(10)
+            #PROMPT('Check mark is a &radio dot',CHECK),%CBItemRadio,DEFAULT(0),AT(10)
+          #ENDTAB
+          #TAB('State and &layout')
+            #PROMPT('Starts &checked / pressed',CHECK),%CBItemChecked,DEFAULT(0),AT(10)
+            #PROMPT('Starts disa&bled',CHECK),%CBItemDisabled,DEFAULT(0),AT(10)
+            #PROMPT('Starts h&idden',CHECK),%CBItemHidden,DEFAULT(0),AT(10)
+            #PROMPT('Clicking it flips its own check mark (&auto-check)',CHECK),%CBItemAutoCheck,DEFAULT(0),AT(10)
+            #DISPLAY('   Auto-check is for MENU ROWS you want to behave like')
+            #DISPLAY('   a setting.  Toggles and check boxes always do it.')
+            #PROMPT('Push it to the &far end of the bar',CHECK),%CBItemRightAlign,DEFAULT(0),AT(10)
+            #PROMPT('Start a &new row after it',CHECK),%CBItemWrap,DEFAULT(0),AT(10)
+            #PROMPT('Image a&bove the text (the big ribbon button)',CHECK),%CBItemTextBelow,DEFAULT(0),AT(10)
+            #PROMPT('Ico&n only, never the text',CHECK),%CBItemIconOnly,DEFAULT(0),AT(10)
+            #PROMPT('Te&xt only, never the image',CHECK),%CBItemTextOnly,DEFAULT(0),AT(10)
+            #PROMPT('S&tretch to eat the leftover width',CHECK),%CBItemStretch,DEFAULT(0),AT(10)
+          #ENDTAB
+        #ENDSHEET
       #ENDBOXED
     #ENDBUTTON
   #ENDBOXED

@@ -660,7 +660,7 @@ add('''<p>Add the extension, then fill in the tabs. They are in the order you wi
 <tr><td><b>Bars</b></td><td>one entry per bar &mdash; name, dock, row, offset, gripper, floatable, ribbon</td></tr>
 <tr><td><b>Ribbon</b></td><td>tabs, and the groups inside them</td></tr>
 <tr><td><b>Menus</b></td><td>popup menus, by name</td></tr>
-<tr><td><b>Items</b></td><td>everything that goes in a bar, a menu or a ribbon group</td></tr>
+<tr><td><b>Items</b></td><td>everything that goes in a bar, a menu or a ribbon group. The item's own dialog is tabbed &mdash; <i>General</i>, <i>Action</i>, <i>Settings</i> (only the box for the type you picked), <i>In a menu</i>, <i>State and layout</i></td></tr>
 <tr><td><b>Keys</b></td><td>a Clarion key equate to a command id</td></tr>
 </tbody></table></div>
 <p>Two more worth knowing: <b>General</b> carries <i>Remember where the user puts the bars</i>, and
