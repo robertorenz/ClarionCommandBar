@@ -46,6 +46,17 @@ Icons are named plainly (`NEW.ICO`). Add them to the application's project and
 Clarion links them into the EXE, where they are found by resource name — no
 loose files to deploy.
 
+## The reference guide
+
+`docs/reference.html` is the programmer's reference — the C API with its pinned
+ordinals, all 125 class methods, the four templates tab by tab, the equate
+tables and a set of recipes. The API tables are **generated from the sources**
+by `docs/build-reference.py`, so they cannot drift from the build:
+
+```
+python docsuild-reference.py     # re-reads commandbar.h/.def and CommandBar.inc
+```
+
 ## What you get
 
 **Bars** dock top, bottom, left or right, stack in rows, sit side by side in a
