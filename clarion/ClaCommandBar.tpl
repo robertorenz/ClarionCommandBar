@@ -772,9 +772,12 @@ CBPump:%ActiveTemplateInstance ROUTINE
     #DISPLAY('   Browse and records   VCR keys, Insert / Change / Delete, a')
     #DISPLAY('                        locator box, Sort, Mark, Refresh, Print')
     #DISPLAY('   Navigation           Back / Forward / Stop / Refresh / Home,')
-    #DISPLAY('                        a stretching address box, Go, Search')
-    #DISPLAY('   Print and export     Print / Preview, an Export drop button')
-    #DISPLAY('                        with PDF, Excel, CSV, HTML, XML, text')
+    #DISPLAY('                        a stretching address box, Go, Search,')
+    #DISPLAY('                        and a zoom SLIDER')
+    #DISPLAY('   Print and export     Print / Preview, a page SPIN BOX, an')
+    #DISPLAY('                        Export drop button with PDF, Excel,')
+    #DISPLAY('                        CSV, HTML, XML and text, and a')
+    #DISPLAY('                        PROGRESS BAR to drive from your loop')
     #DISPLAY('')
     #DISPLAY('Each press starts a NEW bar, on the first free row of the top')
     #DISPLAY('edge.  They are ordinary entries afterwards: rename them, drop')
@@ -822,12 +825,13 @@ CBPump:%ActiveTemplateInstance ROUTINE
     #DISPLAY('')
     #DISPLAY('   Home     Clipboard   [Paste]  Cut / Copy / Format')
     #DISPLAY('            Font        font and size combos, B, I, colour')
+    #DISPLAY('            Styles      a GALLERY of style choices')
     #DISPLAY('            Editing     [Find]   Replace / Go To')
     #DISPLAY('   Insert   Pages       [Cover] [Blank]')
     #DISPLAY('            Illustr.    [Picture] [Chart]')
     #DISPLAY('            Links       Hyperlink / Bookmark / Reference')
     #DISPLAY('   View     Show        Ruler / Gridlines / Navigation pane')
-    #DISPLAY('            Zoom        [Zoom]  Zoom in / Zoom out')
+    #DISPLAY('            Zoom        [Zoom]  Zoom in / out, a SLIDER')
     #BUTTON('Add a standard &ribbon'),WHENACCEPTED(%CBAddPresetRibbon()),AT(,,140)
     #ENDBUTTON
     #BUTTON('Ribbon &tabs...'),MULTI(%CBTabList,%CBTabBar & ' : ' & %CBTabName & '  "' & %CBTabText & '"'),INLINE
@@ -881,7 +885,7 @@ CBPump:%ActiveTemplateInstance ROUTINE
     #DISPLAY('the Action below runs just before that embed.')
     #BUTTON('&Items...'),MULTI(%CBItemList,%CBItemContainer & ' : ' & %CBItemType & '  ' & %CBItemText & CHOOSE(%CBItemCmd = 0,'',' [' & %CBItemCmd & ']')),INLINE
       #PROMPT('&Put it in (a bar, menu or ribbon group name):',@s32),%CBItemContainer,REQ
-      #PROMPT('&Type:',DROP('Button|Toggle button|Drop button|Split button|Separator|Label|Edit box|Combo box|Check box|Colour button|Menu title|Flexible space')),%CBItemType,DEFAULT('Button')
+      #PROMPT('&Type:',DROP('Button|Toggle button|Drop button|Split button|Separator|Label|Edit box|Combo box|Check box|Colour button|Menu title|Flexible space|Slider|Spin box|Progress bar|Gallery')),%CBItemType,DEFAULT('Button')
       #PROMPT('Te&xt (& marks the accelerator letter):',@s64),%CBItemText
       #PROMPT('&Command id (0 = it raises nothing):',SPIN(@n_9,0,999999999,1)),%CBItemCmd,DEFAULT(0)
       #PROMPT('&Image (a name from the Images tab):',@s32),%CBItemImage
@@ -918,6 +922,29 @@ CBPump:%ActiveTemplateInstance ROUTINE
       #ENDENABLE
       #ENABLE(%CBItemType='Edit box')
         #PROMPT('Starting &value:',@s128),%CBItemValue
+      #ENDENABLE
+      #ENABLE(%CBItemType='Slider' OR %CBItemType='Spin box' OR %CBItemType='Progress bar')
+        #PROMPT('&Lowest value:',SPIN(@n_7,-999999,999999,1)),%CBItemLo,DEFAULT(0)
+        #PROMPT('&Highest value:',SPIN(@n_7,-999999,999999,1)),%CBItemHi,DEFAULT(100)
+        #PROMPT('&Starting value:',SPIN(@n_7,-999999,999999,1)),%CBItemVal,DEFAULT(0)
+        #DISPLAY('   A slider and a spin box raise CBE:ValueChanged as the')
+        #DISPLAY('   user moves them, with the new value in LastParam.  A')
+        #DISPLAY('   progress bar is yours to drive with SetItemNumber.')
+      #ENDENABLE
+      #ENABLE(%CBItemType='Gallery')
+        #PROMPT('&Columns:',SPIN(@n2,1,20,1)),%CBItemGalCols,DEFAULT(4)
+        #PROMPT('Cell &width:',SPIN(@n3,16,300,2)),%CBItemGalW,DEFAULT(56)
+        #PROMPT('Cell &height:',SPIN(@n3,16,300,2)),%CBItemGalH,DEFAULT(48)
+        #PROMPT('C&ells:',@s255),%CBItemGalCells
+        #DISPLAY('   Text=Image, separated by pipes, in the order they read:')
+        #DISPLAY('      Normal=New|Heading 1=Open|Title=Save')
+        #DISPLAY('   The image names come from the Images tab.  Leave the')
+        #DISPLAY('   =Image off a cell that has no picture.')
+        #DISPLAY('')
+        #DISPLAY('   Clicking a cell selects it and raises this item''s')
+        #DISPLAY('   command with the cell number (0 first) in LastParam.')
+        #DISPLAY('   Only the cells that FIT are drawn - a ribbon group is')
+        #DISPLAY('   only so tall, so size the cells to suit.')
       #ENDENABLE
       #ENABLE(%CBItemType='Colour button')
         #PROMPT('Starting co&lour:',COLOR),%CBItemColor,DEFAULT(00000080H)
@@ -1232,6 +1259,14 @@ CBItm:%ActiveTemplateInstance:%CBn SIGNED                        ! %CBItemType i
       #IF(%CBItemMenu)
     %CBObject.SetItemMenu(CBItm:%ActiveTemplateInstance:%CBn,%CBMenuVar)
       #ENDIF
+      #IF(%CBItemType='Slider' OR %CBItemType='Spin box' OR %CBItemType='Progress bar')
+    %CBObject.SetItemRange(CBItm:%ActiveTemplateInstance:%CBn,%CBItemLo,%CBItemHi)
+    %CBObject.SetItemNumber(CBItm:%ActiveTemplateInstance:%CBn,%CBItemVal)
+      #ENDIF
+      #IF(%CBItemType='Gallery')
+    %CBObject.SetGalleryGrid(CBItm:%ActiveTemplateInstance:%CBn,%CBItemGalCols,%CBItemGalW,%CBItemGalH)
+        #INSERT(%CBEmitGalleryCells)
+      #ENDIF
       #IF(%CBItemTooltip)
     %CBObject.SetItemTooltip(CBItm:%ActiveTemplateInstance:%CBn,'%CBItemTooltip')
       #ENDIF
@@ -1371,6 +1406,55 @@ CBFit:%ActiveTemplateInstance ROUTINE
   #ENDCASE
 #!
 #!-----------------------------------------------------------------------------
+#! %CBEmitGalleryCells - the cells of ONE gallery, from its pipe-separated
+#! "Text=Image" list.  Written as a loop over the string rather than a second
+#! MULTI list because a list inside a list is miserable to fill in, and a
+#! gallery's cells are short enough to read on one line.
+#!
+#! The counter cap is not decoration: a template loop that never ends does not
+#! error, it HANGS AppGen, and getting out of that means killing the IDE.
+#!-----------------------------------------------------------------------------
+#GROUP(%CBEmitGalleryCells)
+  #DECLARE(%CBCellRest)
+  #DECLARE(%CBCellOne)
+  #DECLARE(%CBCellText)
+  #DECLARE(%CBCellImg)
+  #DECLARE(%CBCellPos)
+  #DECLARE(%CBCellGuard)
+  #SET(%CBCellRest,CLIP(%CBItemGalCells))
+  #SET(%CBCellGuard,0)
+  #LOOP,WHILE(LEN(%CBCellRest) > 0)
+    #SET(%CBCellGuard,%CBCellGuard + 1)
+    #IF(%CBCellGuard > 64)
+      #BREAK
+    #ENDIF
+    #SET(%CBCellPos,INSTRING('|',%CBCellRest,1,1))
+    #IF(%CBCellPos > 0)
+      #SET(%CBCellOne,SUB(%CBCellRest,1,%CBCellPos - 1))
+      #SET(%CBCellRest,SUB(%CBCellRest,%CBCellPos + 1,LEN(%CBCellRest)))
+    #ELSE
+      #SET(%CBCellOne,%CBCellRest)
+      #SET(%CBCellRest,'')
+    #ENDIF
+    #SET(%CBCellPos,INSTRING('=',%CBCellOne,1,1))
+    #IF(%CBCellPos > 0)
+      #SET(%CBCellText,SUB(%CBCellOne,1,%CBCellPos - 1))
+      #SET(%CBCellImg,CLIP(SUB(%CBCellOne,%CBCellPos + 1,LEN(%CBCellOne))))
+    #ELSE
+      #SET(%CBCellText,%CBCellOne)
+      #SET(%CBCellImg,'')
+    #ENDIF
+    #IF(LEN(CLIP(%CBCellText)) = 0)
+      #CYCLE
+    #ENDIF
+    #IF(%CBCellImg)
+    %CBObject.AddGalleryCell(CBItm:%ActiveTemplateInstance:%CBn,CBImg:%ActiveTemplateInstance:%CBCellImg,'%CBCellText')
+    #ELSE
+    %CBObject.AddGalleryCell(CBItm:%ActiveTemplateInstance:%CBn,0,'%CBCellText')
+    #ENDIF
+  #ENDLOOP
+#!
+#!-----------------------------------------------------------------------------
 #! %CBTypeEquate(item type text) - called from inside #FOR: ONE argument.
 #!-----------------------------------------------------------------------------
 #GROUP(%CBTypeEquate,%pType)
@@ -1397,6 +1481,14 @@ CBFit:%ActiveTemplateInstance ROUTINE
     #RETURN('CBI:Menu')
   #OF('Flexible space')
     #RETURN('CBI:Space')
+  #OF('Slider')
+    #RETURN('CBI:Slider')
+  #OF('Spin box')
+    #RETURN('CBI:Spin')
+  #OF('Progress bar')
+    #RETURN('CBI:Progress')
+  #OF('Gallery')
+    #RETURN('CBI:Gallery')
   #ELSE
     #RETURN('CBI:Button')
   #ENDCASE
@@ -1850,6 +1942,9 @@ CBFit:%ActiveTemplateInstance ROUTINE
     #INSERT(%CBPutItem,%CBpBar,'Button','&Go',%CBpCmd + 6,'','Go there')
     #INSERT(%CBPutSep,%CBpBar)
     #INSERT(%CBPutItem,%CBpBar,'Button','',%CBpCmd + 7,'Search','Search')
+    #INSERT(%CBPutSep,%CBpBar)
+    #INSERT(%CBPutItem,%CBpBar,'Label','Zoom',0,'','')
+    #INSERT(%CBPutSlider,%CBpBar,%CBpCmd + 8,25,400,100,110)
     #INSERT(%CBPutAccel,'F5Key',%CBpCmd + 3)
   #!===========================================================================
   #ELSE
@@ -1875,11 +1970,15 @@ CBFit:%ActiveTemplateInstance ROUTINE
     #INSERT(%CBPutRow,%CBpMnu,'Plain &text...',%CBpCmd + 8,'Text','')
     #INSERT(%CBPutItem,%CBpBar,'Button','&Print',%CBpCmd,'Print','Print (Ctrl+P)')
     #INSERT(%CBPutItem,%CBpBar,'Button','Pre&view',%CBpCmd + 1,'Preview','Print preview')
+    #INSERT(%CBPutItem,%CBpBar,'Label','Page',0,'','')
+    #INSERT(%CBPutSpin,%CBpBar,%CBpCmd + 11,1,9999,1,58)
     #INSERT(%CBPutSep,%CBpBar)
     #INSERT(%CBPutDrop,%CBpBar,'&Export',%CBpCmd + 2,'Save',%CBpMnu,'Export the data')
     #INSERT(%CBPutSep,%CBpBar)
     #INSERT(%CBPutItem,%CBpBar,'Button','&Refresh',%CBpCmd + 9,'Refresh','Read the data again (F5)')
     #INSERT(%CBPutItem,%CBpBar,'Flexible space','',0,'','')
+    #!  drive this from your export loop with SetItemNumber
+    #INSERT(%CBPutProgress,%CBpBar,0,120)
     #INSERT(%CBPutItem,%CBpBar,'Button','&Close',%CBpCmd + 10,'Exit','Close this window')
     #INSERT(%CBPutAccel,'CtrlP',%CBpCmd)
     #INSERT(%CBPutAccel,'F5Key',%CBpCmd + 9)
@@ -1901,6 +2000,34 @@ CBFit:%ActiveTemplateInstance ROUTINE
   #SET(%CBItemCombo,%pChoices)
   #SET(%CBItemWidth,%pWidth)
   #SET(%CBItemComboSel,%pSel)
+#!
+#GROUP(%CBPutSlider,%pIn,%pCmd,%pLo,%pHi,%pVal,%pWidth),AUTO
+  #INSERT(%CBPutItem,%pIn,'Slider','',%pCmd,'','')
+  #SET(%CBItemLo,%pLo)
+  #SET(%CBItemHi,%pHi)
+  #SET(%CBItemVal,%pVal)
+  #SET(%CBItemWidth,%pWidth)
+#!
+#GROUP(%CBPutSpin,%pIn,%pCmd,%pLo,%pHi,%pVal,%pWidth),AUTO
+  #INSERT(%CBPutItem,%pIn,'Spin box','',%pCmd,'','')
+  #SET(%CBItemLo,%pLo)
+  #SET(%CBItemHi,%pHi)
+  #SET(%CBItemVal,%pVal)
+  #SET(%CBItemWidth,%pWidth)
+#!
+#GROUP(%CBPutProgress,%pIn,%pVal,%pWidth),AUTO
+  #INSERT(%CBPutItem,%pIn,'Progress bar','',0,'','')
+  #SET(%CBItemLo,0)
+  #SET(%CBItemHi,100)
+  #SET(%CBItemVal,%pVal)
+  #SET(%CBItemWidth,%pWidth)
+#!
+#GROUP(%CBPutGallery,%pIn,%pCmd,%pCols,%pW,%pH,%pCells),AUTO
+  #INSERT(%CBPutItem,%pIn,'Gallery','',%pCmd,'','')
+  #SET(%CBItemGalCols,%pCols)
+  #SET(%CBItemGalW,%pW)
+  #SET(%CBItemGalH,%pH)
+  #SET(%CBItemGalCells,%pCells)
 #!
 #GROUP(%CBPutToggle,%pIn,%pText,%pCmd),AUTO
   #INSERT(%CBPutItem,%pIn,'Toggle button',%pText,%pCmd,'','')
@@ -1971,6 +2098,10 @@ CBFit:%ActiveTemplateInstance ROUTINE
   #INSERT(%CBPutToggle,%CBpGrp,'B',%CBpCmd + 6)
   #INSERT(%CBPutToggle,%CBpGrp,'I',%CBpCmd + 7)
   #INSERT(%CBPutColour,%CBpGrp,%CBpCmd + 8,00800000H)
+  #!  a STYLE GALLERY, which is the thing a ribbon has that a toolbar cannot
+  #SET(%CBpGrp,%CBFreeName('Styles'))
+  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Styles')
+  #INSERT(%CBPutGallery,%CBpGrp,%CBpCmd + 25,4,62,54,'Normal=New|Heading=Open|Title=Save|Quote=Print')
   #SET(%CBpGrp,%CBFreeName('Editing'))
   #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Editing')
   #INSERT(%CBPutBig,%CBpGrp,'Find',%CBpCmd + 9,'Find','Find (Ctrl+F)')
@@ -2005,6 +2136,7 @@ CBFit:%ActiveTemplateInstance ROUTINE
   #INSERT(%CBPutBig,%CBpGrp,'Zoom',%CBpCmd + 22,'Zoom','Zoom')
   #INSERT(%CBPutItem,%CBpGrp,'Button','Zoom in',%CBpCmd + 23,'','Zoom in')
   #INSERT(%CBPutItem,%CBpGrp,'Button','Zoom out',%CBpCmd + 24,'','Zoom out')
+  #INSERT(%CBPutSlider,%CBpGrp,%CBpCmd + 26,25,400,100,120)
 #!
 #!-----------------------------------------------------------------------------
 #! 3.  A popup menu, from one of five presets.

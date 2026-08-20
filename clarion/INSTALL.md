@@ -394,7 +394,7 @@ your own code in the embed points.
 | Tab | Button | What you get |
 |-----|--------|--------------|
 | **Bars** | *Add this toolbar*, with a **Toolbar** drop beside it | one of five classics — see below |
-| **Ribbon** | *Add a standard ribbon* | the ribbon from `CommandBarShowcase`, entry for entry: **Home** — Clipboard (big Paste, then Cut / Copy / Format), Font (font and size combos, **B** and *I* toggles, a colour button), Editing (big Find, then Replace / Go To); **Insert** — Pages, Illustrations, Links; **View** — Show (three tick boxes) and Zoom. Small icons go to 20px and large to 32px if they were still at their defaults, so the big buttons have room |
+| **Ribbon** | *Add a standard ribbon* | the ribbon from `CommandBarShowcase` plus the two things only a ribbon can do: **Home** — Clipboard, Font, a **Styles gallery** (Normal / Heading / Title / Quote) and Editing; **Insert** — Pages, Illustrations, Links; **View** — Show and Zoom, with a **zoom slider**. Small icons go to 20px and large to 32px if they were still at their defaults |
 | **Menus** | *Add this preset menu* | the popup named by the **Preset** drop beside it: **File**, **Edit**, **Browse row**, **View** or **Help** — with icons, shortcut text, and check marks where they belong |
 
 **The five toolbars:**
@@ -404,8 +404,8 @@ your own code in the embed points.
 | **Standard** | New, Open, Save ǀ Print ǀ Cut, Copy, Paste ǀ Undo, Redo ǀ a search box, Find ǀ Help pushed to the far end. `Ctrl+N/O/S/P/F` and `F1` |
 | **Formatting** | font and size combos ǀ **B** *I* <u>U</u> and a text-colour button ǀ left / centre / right ǀ bulleted and numbered lists. `Ctrl+B/I/U` |
 | **Browse and records** | the VCR keys ǀ Insert, Change, Delete ǀ a locator box, Locate, Sort, Mark ǀ Refresh ǀ Print at the far end. `Ctrl+F`, `F5` |
-| **Navigation** | Back, Forward, Stop, Refresh, Home ǀ an address box that **stretches** to eat the leftover width, Go ǀ Search. `F5` |
-| **Print and export** | Print, Preview ǀ an **Export drop button** carrying a menu of PDF, Excel, CSV, HTML, XML and plain text ǀ Refresh ǀ Close at the far end. `Ctrl+P`, `F5` |
+| **Navigation** | Back, Forward, Stop, Refresh, Home ǀ an address box that **stretches** to eat the leftover width, Go ǀ Search ǀ a zoom **slider**. `F5` |
+| **Print and export** | Print, Preview, a page **spin box** ǀ an **Export drop button** carrying a menu of PDF, Excel, CSV, HTML, XML and plain text ǀ Refresh ǀ a **progress bar** to drive from your export loop, and Close. `Ctrl+P`, `F5` |
 
 Each press starts a **new** bar on the first free row of the top edge, so you
 can stack two of them without them fighting over a row.
@@ -483,6 +483,41 @@ CommandBar.SaveLayoutTo('.\MyApp.INI', 'CommandBars')        ! before the window
 
 `LayoutText()` and `RestoreLayout()` hand you the blob directly if you would
 rather keep it somewhere else — a user record, the registry, a settings table.
+
+### 5b13. Sliders, spin boxes, progress bars and galleries
+
+Four item types on the **Items** tab beyond the buttons and boxes.
+
+**Slider**, **Spin box** and **Progress bar** are one idea wearing three faces:
+a value between two bounds. Give them a lowest, a highest and a starting value.
+The first two raise `CBE:ValueChanged` as the user moves them, with the new
+value in `LastParam`; a progress bar is yours to drive:
+
+```clarion
+CommandBar.SetItemNumber(CBItm:1:9, done * 100 / total)
+```
+
+**Gallery** is a grid of picture choices — the thing a ribbon group wants when
+a row of buttons will not do. Fill it in on one line, `Text=Image` separated by
+pipes, with the image names coming from the Images tab:
+
+```
+Normal=New|Heading=Open|Title=Save|Quote=Print
+```
+
+Clicking a cell selects it and raises the item's command with the cell number
+(0 first) in `LastParam`. A ribbon group is a fixed height, so a gallery too
+tall for it is **shrunk to fit** rather than dropped — set the cell height to
+what you actually want and check it looks right.
+
+By hand:
+
+```clarion
+gal = CommandBar.AddGallery(grp, CMD:Style, 4, 62, 54)   ! cols, cell w, cell h
+CommandBar.AddGalleryCell(gal, imgNew,  'Normal')
+CommandBar.AddGalleryCell(gal, imgOpen, 'Heading')
+CommandBar.SetGallerySel(gal, 0)
+```
 
 ### 5c. Putting your own controls under the bars
 

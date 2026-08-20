@@ -2108,13 +2108,27 @@ void CBLayoutRibbon(CBManager* m, CBContainer* c, int availW)
                     if (rowInCol) { colX += colW + gap; rowInCol = 0; colW = 0; }
                     int gw = 0, gh = 0;
                     CBMeasureItem(m, c, it, &gw, &gh);
+
+                    /*  Fit it to the group rather than clip it away.  A
+                        cell an inch too tall used to lose its whole row,
+                        which read as a gallery that had not been built. */
+                    const int availH = contH - 2 * padY;
+                    int cellH = (int)(it->gCellH * m->dpiScale);
+                    if (cellH > availH) cellH = availH;
+                    if (cellH < 8) cellH = 8;
+                    it->gDrawH = cellH;
+
+                    const int cols = it->gCols > 0 ? it->gCols : 4;
+                    int rows = ((int)it->cells.size() + cols - 1) / cols;
+                    const int fits = availH / cellH;
+                    if (rows > fits) rows = fits;
+                    if (rows < 1) rows = 1;
+
                     it->rc.left   = colX;
                     it->rc.right  = colX + gw;
                     it->rc.top    = contentTop + padY;
-                    it->rc.bottom = it->rc.top + gh;
-                    /*  never taller than the group has room for */
-                    if (it->rc.bottom > contentTop + contH - padY)
-                        it->rc.bottom = contentTop + contH - padY;
+                    it->rc.bottom = it->rc.top + rows * cellH;
+                    (void)gh;
                     colX += gw + gap;
                     c->laid.push_back(it->id);
                     continue;
@@ -2176,9 +2190,15 @@ void CBLayoutRibbon(CBManager* m, CBContainer* c, int availW)
                 if (it->type == CBI_DROPDOWN) w += (int)(12 * m->dpiScale);
                 if (it->type == CBI_SPLIT || it->type == CBI_COLOR)
                     w += (int)(16 * m->dpiScale);
-                if (it->type == CBI_EDIT || it->type == CBI_COMBO)
-                    w = it->width > 0 ? (int)(it->width * m->dpiScale)
-                                      : (int)(110 * m->dpiScale);
+                /*  The ones that are a strip of a given width, not an
+                    icon and a caption: a slider, a spin box, a progress
+                    bar and the two text fields.  Sized from what they
+                    asked for, or they end up squeezed to nothing in a
+                    small-item column. */
+                if (it->type == CBI_EDIT || it->type == CBI_COMBO ||
+                    it->type == CBI_SLIDER || it->type == CBI_PROGRESS ||
+                    it->type == CBI_SPIN)
+                    CBMeasureItem(m, c, it, &w, NULL);
 
                 if (rowInCol == 0) startX = colX;
                 it->rc.left   = startX;
@@ -2972,6 +2992,17 @@ int CBAPI CB_AddGalleryCell(HCB cb, int item, int image, const char* text)
     if (it->gSel < 0) it->gSel = 0;
     CBRelayout(m);
     return (int)it->cells.size() - 1;
+}
+
+void CBAPI CB_SetGalleryGrid(HCB cb, int item, int columns, int cellW, int cellH)
+{
+    CBManager* m = (CBManager*)cb;
+    CBItem* it = CBFindItem(m, item);
+    if (!it || it->type != CBI_GALLERY) return;
+    if (columns > 0) it->gCols  = columns;
+    if (cellW  > 8) it->gCellW = cellW;
+    if (cellH  > 8) it->gCellH = cellH;
+    CBRelayout(m);
 }
 
 int CBAPI CB_GetGallerySel(HCB cb, int item)

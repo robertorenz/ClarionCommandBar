@@ -123,6 +123,7 @@ CB_SetItemNumber     PROCEDURE(LONG cb, SIGNED item, SIGNED value),PASCAL,NAME('
 CB_GetItemNumber     PROCEDURE(LONG cb, SIGNED item),SIGNED,PASCAL,NAME('CB_GetItemNumber')
 CB_AddGallery        PROCEDURE(LONG cb, SIGNED container, LONG cmd, SIGNED columns, SIGNED cellW, SIGNED cellH),SIGNED,PASCAL,NAME('CB_AddGallery')
 CB_AddGalleryCell    PROCEDURE(LONG cb, SIGNED item, SIGNED image, *CSTRING text),SIGNED,PASCAL,RAW,NAME('CB_AddGalleryCell')
+CB_SetGalleryGrid    PROCEDURE(LONG cb, SIGNED item, SIGNED columns, SIGNED cellW, SIGNED cellH),PASCAL,NAME('CB_SetGalleryGrid')
 CB_GetGallerySel     PROCEDURE(LONG cb, SIGNED item),SIGNED,PASCAL,NAME('CB_GetGallerySel')
 CB_SetGallerySel     PROCEDURE(LONG cb, SIGNED item, SIGNED index),PASCAL,NAME('CB_SetGallerySel')
 CB_LoadLayout        PROCEDURE(LONG cb, *CSTRING text),SIGNED,PASCAL,RAW,NAME('CB_LoadLayout')
@@ -1475,6 +1476,11 @@ s CSTRING(129)
   IF ~SELF.CB THEN RETURN -1.
   s = CLIP(text)
   RETURN CB_AddGalleryCell(SELF.CB, item, image, s)
+
+
+CommandBarClass.SetGalleryGrid PROCEDURE(SIGNED item, SIGNED columns, SIGNED cellW, SIGNED cellH)
+  CODE
+  IF SELF.CB THEN CB_SetGalleryGrid(SELF.CB, item, columns, cellW, cellH).
 
 
 CommandBarClass.GallerySel PROCEDURE(SIGNED item)

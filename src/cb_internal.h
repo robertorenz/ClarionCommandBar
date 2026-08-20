@@ -140,6 +140,10 @@ struct CBItem
     struct Cell { int image; std::wstring text; };
     std::vector<Cell> cells;
     int           gCols, gCellW, gCellH, gSel, gHot;
+    /*  What the layout could actually give a cell.  A ribbon group is a
+        fixed height, and a gallery asked to be taller than the group has
+        to shrink into it rather than vanish. */
+    int           gDrawH;
 
     /* ---- filled in by the layout pass ---- */
     RECT          rc;            /* whole item, container client coords */
@@ -152,7 +156,7 @@ struct CBItem
           image(0), style(0), enabled(true), checked(false), visible(true),
           menu(0), width(0), color(RGB(0, 0, 0)), comboSel(-1),
           vlo(0), vhi(100), vval(0),
-          gCols(4), gCellW(56), gCellH(48), gSel(-1), gHot(-1),
+          gCols(4), gCellW(56), gCellH(48), gSel(-1), gHot(-1), gDrawH(0),
           row(0), overflow(false)
     {
         SetRectEmpty(&rc);

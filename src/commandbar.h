@@ -426,6 +426,8 @@ int   CBAPI CB_GetItemNumber(HCB cb, int item);
 /* the cell's index as the parameter.                                     */
 int   CBAPI CB_AddGallery(HCB cb, int container, long cmd, int columns, int cellW, int cellH);
 int   CBAPI CB_AddGalleryCell(HCB cb, int item, int image, const char* text);
+/* The grid, for a gallery made through the generic CB_AddItem.          */
+void  CBAPI CB_SetGalleryGrid(HCB cb, int item, int columns, int cellW, int cellH);
 int   CBAPI CB_GetGallerySel(HCB cb, int item);
 void  CBAPI CB_SetGallerySel(HCB cb, int item, int index);
 

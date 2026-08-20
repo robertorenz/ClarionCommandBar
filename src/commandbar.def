@@ -114,3 +114,4 @@ EXPORTS
     CB_AddGalleryCell    @94
     CB_GetGallerySel     @95
     CB_SetGallerySel     @96
+    CB_SetGalleryGrid    @97

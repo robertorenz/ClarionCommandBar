@@ -355,6 +355,7 @@ ItemNumber      PROCEDURE(SIGNED item),SIGNED
 !-- Only the cells that FIT are drawn, so size them to the group.
 AddGallery      PROCEDURE(SIGNED container, LONG cmd, SIGNED columns=4, SIGNED cellW=56, SIGNED cellH=48),SIGNED,PROC
 AddGalleryCell  PROCEDURE(SIGNED item, SIGNED image, STRING text),SIGNED,PROC
+SetGalleryGrid  PROCEDURE(SIGNED item, SIGNED columns, SIGNED cellW, SIGNED cellH)
 GallerySel      PROCEDURE(SIGNED item),SIGNED
 SetGallerySel   PROCEDURE(SIGNED item, SIGNED index)
 LayoutText      PROCEDURE(),STRING,VIRTUAL

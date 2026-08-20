@@ -952,10 +952,10 @@ static int CBGalleryCellAt(CBManager* m, CBItem* it, POINT p)
 {
     if (!it || it->type != CBI_GALLERY) return -1;
     const int cw = (int)(it->gCellW * m->dpiScale);
-    const int ch = (int)(it->gCellH * m->dpiScale);
+    const int ch = it->gDrawH > 0 ? it->gDrawH : (int)(it->gCellH * m->dpiScale);
     const int cols = it->gCols > 0 ? it->gCols : 4;
     const int x0 = it->rc.left + CBMetric(m, CBM_PADX);
-    const int y0 = it->rc.top  + CBMetric(m, CBM_PADY);
+    const int y0 = it->rc.top;
     if (p.x < x0 || p.y < y0 || cw < 1 || ch < 1) return -1;
     const int col = (p.x - x0) / cw;
     const int row = (p.y - y0) / ch;
@@ -1187,10 +1187,10 @@ static void DrawBarItem(CBManager* m, CBContainer* c, CBItem* it)
     if (it->type == CBI_GALLERY)
     {
         const int cw = (int)(it->gCellW * m->dpiScale);
-        const int ch = (int)(it->gCellH * m->dpiScale);
+        const int ch = it->gDrawH > 0 ? it->gDrawH : (int)(it->gCellH * m->dpiScale);
         const int cols = it->gCols > 0 ? it->gCols : 4;
         const int x0 = it->rc.left + CBMetric(m, CBM_PADX);
-        const int y0 = it->rc.top  + CBMetric(m, CBM_PADY);
+        const int y0 = it->rc.top;
 
         for (size_t k = 0; k < it->cells.size(); ++k)
         {
