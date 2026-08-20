@@ -627,6 +627,51 @@ static void CollectSide(CBManager* m, int dock, std::vector<DockRowInfo>* out)
                 if (v[b]->dockOffset < v[a]->dockOffset)
                 { CBContainer* t = v[a]; v[a] = v[b]; v[b] = t; }
     }
+
+    /*  A RIBBON owns its row.
+
+        Bars sharing a row are handed out left to right, each taking the
+        width it asked for - and a ribbon asks for ALL of it, because a
+        ribbon is a full-width band with tabs across it.  Put one on the
+        same row as a menu bar and whichever came first swallowed the row:
+        with the ribbon first the menu was squeezed to a single pixel and
+        simply vanished.
+
+        Rather than let that happen, a ribbon sharing a row is moved to a
+        row of its own directly below, keeping the thin bars where they
+        were.  Anyone who really did mean row 0 for both gets the only
+        arrangement that can show both. */
+    for (size_t r = 0; r < out->size(); ++r)
+    {
+        std::vector<CBContainer*>& v = (*out)[r].bars;
+        if (v.size() < 2) continue;
+
+        std::vector<CBContainer*> ribbons;
+        for (size_t k = v.size(); k-- > 0; )
+            if (v[k]->style & CBBS_RIBBON)
+            {
+                ribbons.insert(ribbons.begin(), v[k]);
+                v.erase(v.begin() + k);
+            }
+        if (ribbons.empty()) continue;
+
+        if (v.empty())                       /* nothing but ribbons here */
+        {
+            v.push_back(ribbons[0]);
+            ribbons.erase(ribbons.begin());
+            if (ribbons.empty()) continue;
+        }
+
+        const int rowNo = (*out)[r].row;
+        for (size_t q = 0; q < ribbons.size(); ++q)
+        {
+            DockRowInfo nr;
+            nr.row = rowNo;
+            nr.bars.push_back(ribbons[q]);
+            out->insert(out->begin() + (r + 1 + q), nr);
+        }
+        r += ribbons.size();
+    }
 }
 
 /*  Is this bar already exactly where the layout wants it?  Tells a layout

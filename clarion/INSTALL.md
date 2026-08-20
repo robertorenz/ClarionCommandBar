@@ -409,6 +409,19 @@ Clarion links them into the EXE; the manager finds them there by resource name
 whatever directory the program is started from. A copy sitting next to the EXE,
 or in an `images` folder beside it, is found too.
 
+### 5b11a. A ribbon always gets a row to itself
+
+Bars sharing a row are handed out left to right, each taking the width it
+asks for — and a **ribbon asks for the whole row**, because it is a full-width
+band with tabs across it. Put one on the same row as a menu bar and the row
+went to whichever came first: with the ribbon first the menu bar was squeezed
+to a single pixel and disappeared.
+
+So a ribbon sharing a row is moved to a row of its own **directly below**,
+leaving the thin bars where they were. Set both to row 0 and you get the menu
+bar on top with the ribbon under it — the only arrangement that shows both.
+Nothing to configure.
+
 ### 5b11. A ribbon that collapses
 
 Tick **Starts collapsed to its tabs** on a bar marked *Is a ribbon* and it
