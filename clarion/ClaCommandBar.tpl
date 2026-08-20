@@ -1410,35 +1410,49 @@ CBFit:%ActiveTemplateInstance ROUTINE
 #! Standard2, Ribbon2, FileMenu2 and so on rather than a duplicate.
 #!-----------------------------------------------------------------------------
 #GROUP(%CBNameTaken,%pName),AUTO
+  #DECLARE(%CBTaken)
+  #SET(%CBTaken,0)
   #FOR(%CBBarList)
     #IF(UPPER(%CBBarName) = UPPER(%pName))
-      #RETURN(1)
+      #SET(%CBTaken,1)
+      #BREAK
     #ENDIF
   #ENDFOR
   #FOR(%CBMenuList)
     #IF(UPPER(%CBMenuName) = UPPER(%pName))
-      #RETURN(1)
+      #SET(%CBTaken,1)
+      #BREAK
     #ENDIF
   #ENDFOR
   #FOR(%CBTabList)
     #IF(UPPER(%CBTabName) = UPPER(%pName))
-      #RETURN(1)
+      #SET(%CBTaken,1)
+      #BREAK
     #ENDIF
   #ENDFOR
   #FOR(%CBGroupList)
     #IF(UPPER(%CBGroupName) = UPPER(%pName))
-      #RETURN(1)
+      #SET(%CBTaken,1)
+      #BREAK
     #ENDIF
   #ENDFOR
-  #RETURN(0)
+  #RETURN(%CBTaken)
 #!
+#!  A group hands its answer back as TEXT, and '0' is not false to #IF or
+#!  to #LOOP,WHILE - every string but the empty one is true.  Written as
+#!  #LOOP,WHILE(%CBNameTaken(...)) this span for ever and hung AppGen, so
+#!  the test is spelled out, and the count is capped as well: a template
+#!  bug should never be able to lock the IDE up again.
 #GROUP(%CBFreeName,%pBase),AUTO
   #DECLARE(%CBTryName)
   #DECLARE(%CBTryNum)
   #SET(%CBTryName,%pBase)
   #SET(%CBTryNum,1)
-  #LOOP,WHILE(%CBNameTaken(%CBTryName))
+  #LOOP,WHILE(%CBNameTaken(%CBTryName) = 1)
     #SET(%CBTryNum,%CBTryNum + 1)
+    #IF(%CBTryNum > 99)
+      #BREAK
+    #ENDIF
     #SET(%CBTryName,%pBase & %CBTryNum)
   #ENDLOOP
   #RETURN(%CBTryName)
@@ -1448,14 +1462,19 @@ CBFit:%ActiveTemplateInstance ROUTINE
 #! same name it does nothing, so two presets can share NEW.ICO.
 #!-----------------------------------------------------------------------------
 #GROUP(%CBUseImage,%pName,%pFile),AUTO
+  #DECLARE(%CBHaveImg)
+  #SET(%CBHaveImg,0)
   #FOR(%CBImageList)
     #IF(UPPER(%CBImageName) = UPPER(%pName))
-      #RETURN
+      #SET(%CBHaveImg,1)
+      #BREAK
     #ENDIF
   #ENDFOR
-  #ADD(%CBImageList,ITEMS(%CBImageList)+1)
-  #SET(%CBImageName,%pName)
-  #SET(%CBImageFile,%pFile)
+  #IF(%CBHaveImg = 0)
+    #ADD(%CBImageList,ITEMS(%CBImageList)+1)
+    #SET(%CBImageName,%pName)
+    #SET(%CBImageFile,%pFile)
+  #ENDIF
 #!
 #GROUP(%CBStdIcons),AUTO
   #INSERT(%CBUseImage,'New','NEW.ICO')
@@ -1521,14 +1540,19 @@ CBFit:%ActiveTemplateInstance ROUTINE
   #SET(%CBGroupText,%pText)
 #!
 #GROUP(%CBPutAccel,%pKey,%pCmd),AUTO
+  #DECLARE(%CBHaveKey)
+  #SET(%CBHaveKey,0)
   #FOR(%CBAccelList)
     #IF(UPPER(%CBAccelKey) = UPPER(%pKey))
-      #RETURN
+      #SET(%CBHaveKey,1)
+      #BREAK
     #ENDIF
   #ENDFOR
-  #ADD(%CBAccelList,ITEMS(%CBAccelList)+1)
-  #SET(%CBAccelKey,%pKey)
-  #SET(%CBAccelCmd,%pCmd)
+  #IF(%CBHaveKey = 0)
+    #ADD(%CBAccelList,ITEMS(%CBAccelList)+1)
+    #SET(%CBAccelKey,%pKey)
+    #SET(%CBAccelCmd,%pCmd)
+  #ENDIF
 #!
 #!-----------------------------------------------------------------------------
 #! 1.  A standard toolbar - the row nearly every application starts with,
