@@ -382,7 +382,8 @@ CB_Shutdown();
 
 # ---------------------------------------------------------------- page
 NAV = [
- ('Start', [('overview','Overview'), ('install','Installing'), ('hello','Your first bar'), ('model','How it fits together')]),
+ ('Start', [('overview','Overview'), ('install','Installing'), ('hello','Your first bar'), ('examples','The examples'),
+                ('model','How it fits together')]),
  ('Templates', [('tpl','The four templates'), ('tpl-work','Working in AppGen'), ('tpl-presets','Presets'),
                 ('tpl-actions','What an item does'), ('tpl-embeds','Embed points')]),
  ('Clarion class', [('cls','CommandBarClass')] + [('cls-' + slug(t), t) for t, _ in GROUPS]),
@@ -607,6 +608,20 @@ add(note('cla', 'Three things that are not optional',
    'drives the pump &mdash; without one, nothing you click is ever delivered. And <code>EVENT:Sized</code> '
    'has to reach <code>CB.Layout()</code>, or the bars keep the size they had when the window opened.</p>'))
 
+add('<h2 id="examples"><span class="k">Start</span>The examples</h2>')
+add('''<div class="tw"><table><thead><tr><th>Folder</th><th>What it shows</th></tr></thead><tbody>
+<tr><td><code>CommandBarShowcase</code></td><td><b>start here</b> &mdash; a mirrored Clarion menu; a ribbon
+with a Styles <b>gallery</b> and a Zoom group holding a slider, a spin box and a progress bar; docking on
+four edges; a bar landed on a REGION</td></tr>
+<tr><td><code>CommandBarDemo</code></td><td>one window exercising every item type and all eleven themes</td></tr>
+<tr><td><code>MenuMirrorTest</code></td><td>mirroring on a plain WINDOW and on an MDI <code>APPLICATION</code>
+frame that opens a merging child &mdash; the awkward cases, each with what it caught written up in its
+README</td></tr>
+<tr><td><code>bin/testhost.exe</code></td><td>the engine with no Clarion involved: every item type, the
+ribbon, every theme. <code>testhost.exe 7</code> starts on theme 7</td></tr>
+</tbody></table></div>
+<p>Each builds with its own <code>build.bat</code>.</p>''')
+
 add('<h2 id="model"><span class="k">Start</span>How it fits together</h2>')
 add('''
 <h3>Managers, containers, items</h3>
@@ -816,6 +831,11 @@ add('''<p>A grid of picture choices &mdash; what a ribbon group wants when a row
 add(code(S_GALLERY))
 add('''<p>A ribbon group is a fixed height, so a gallery too tall for it is <b>shrunk to fit</b> rather
 than dropped. Set the cell height to what you actually want, then look at it.</p>''')
+add(note('cla', 'A working one to copy',
+   '<p><code>examples/CommandBarShowcase</code> &rarr; <b>Demos &rarr; Ribbon bar&hellip;</b>: '
+   '<b>Home &rarr; Styles</b> is a gallery that reports the cell number it raises, and '
+   '<b>View &rarr; Zoom</b> holds a slider, a spin box and a progress bar &mdash; the slider driving the '
+   'progress bar, so a drag firing on every step is something you can watch.</p>'))
 
 add('<h3>Collapse the ribbon</h3>')
 add('''<p>A small chevron sits at the end of the tab strip &mdash; up while the ribbon is open, down once
