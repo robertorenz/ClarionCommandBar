@@ -2702,6 +2702,20 @@ LRESULT CALLBACK CBBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             CB_SetBarDock(m, c->id, CBD_TOP, c->dockRow, c->dockOffset);
             return 0;
         }
+        /*  Double-clicking the tab strip of a ribbon collapses it to the
+            tabs alone, and opens it again - the gesture people already
+            know from Office. */
+        if (c->style & CBBS_RIBBON)
+        {
+            POINT dp;
+            dp.x = GET_X_LPARAM(lp);
+            dp.y = GET_Y_LPARAM(lp);
+            if (CBTabHitTest(m, c, dp))
+            {
+                CB_SetRibbonMinimized(m, c->id, c->minimized ? 0 : 1);
+                return 0;
+            }
+        }
         /* fall through */
     case WM_LBUTTONDOWN:
     {
@@ -2740,7 +2754,13 @@ LRESULT CALLBACK CBBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         if (c->style & CBBS_RIBBON)
         {
             int ht = CBTabHitTest(m, c, p);
-            if (ht) { CB_SetActiveTab(m, c->id, ht); return 0; }
+            if (ht)
+            {
+                CB_SetActiveTab(m, c->id, ht);
+                /* clicking a tab on a collapsed ribbon opens it again */
+                if (c->minimized) CB_SetRibbonMinimized(m, c->id, 0);
+                return 0;
+            }
         }
 
         int zone = 0;

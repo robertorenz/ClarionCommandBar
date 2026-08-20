@@ -419,7 +419,8 @@ Window WINDOW('Ribbon - tabs of groups of items'),AT(,,640,300),GRAY,SYSTEM,MAX,
   CB.AddLargeButton(grp, 0, 'Zoom', iFind)
 
   CB.Layout()
-  Msg = 'Click the tabs.  View > Theme changes the palette live.'
+  Msg = 'Click the tabs.  Double-click a tab to collapse the ribbon.  ' & |
+        'View > Theme changes the palette live.'
   DISPLAY
 
   ACCEPT

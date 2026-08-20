@@ -112,6 +112,8 @@ CB_SetHostMenuVisible PROCEDURE(LONG cb, SIGNED visible),PASCAL,NAME('CB_SetHost
 CB_SetReserveSpace   PROCEDURE(LONG cb, SIGNED mode),PASCAL,NAME('CB_SetReserveSpace')
 CB_SetHostReserveBottom PROCEDURE(LONG cb, SIGNED px),PASCAL,NAME('CB_SetHostReserveBottom')
 CB_GetHostReserveBottom PROCEDURE(LONG cb),SIGNED,PASCAL,NAME('CB_GetHostReserveBottom')
+CB_SetRibbonMinimized PROCEDURE(LONG cb, SIGNED bar, SIGNED minimized),PASCAL,NAME('CB_SetRibbonMinimized')
+CB_GetRibbonMinimized PROCEDURE(LONG cb, SIGNED bar),SIGNED,PASCAL,NAME('CB_GetRibbonMinimized')
 CB_GetReserveSpace   PROCEDURE(LONG cb),SIGNED,PASCAL,NAME('CB_GetReserveSpace')
 CB_GetHostMenuVisible PROCEDURE(LONG cb),SIGNED,PASCAL,NAME('CB_GetHostMenuVisible')
     END
@@ -1224,6 +1226,17 @@ CommandBarClass.HostReserveHeight PROCEDURE()
   CODE
   IF ~SELF.CB THEN RETURN 0.
   RETURN CB_GetHostReserveBottom(SELF.CB)
+
+
+CommandBarClass.MinimizeRibbon PROCEDURE(SIGNED bar, BYTE minimized)
+  CODE
+  IF SELF.CB THEN CB_SetRibbonMinimized(SELF.CB, bar, minimized).
+
+
+CommandBarClass.RibbonMinimized PROCEDURE(SIGNED bar)
+  CODE
+  IF ~SELF.CB THEN RETURN 0.
+  RETURN CB_GetRibbonMinimized(SELF.CB, bar)
 
 !---------------------------------------------------------------------
 ! the event pump

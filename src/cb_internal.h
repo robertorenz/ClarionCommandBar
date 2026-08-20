@@ -205,6 +205,7 @@ struct CBContainer
     /* ---- ribbon ---- */
     int   activeTab;       /* on a ribbon bar: the tab on show          */
     int   hotTab;          /* tab strip hot-tracking                    */
+    bool  minimized;       /* ribbon collapsed to its tab strip          */
     RECT  tabRc;           /* on a tab: its rect in the strip           */
     RECT  groupRc;         /* on a group: its whole box                 */
     std::wstring caption;  /* tab / group caption                       */
@@ -220,7 +221,7 @@ struct CBContainer
           hasChevron(false), chevronMenu(0), hotItem(0), hotZone(CBHIT_NONE),
           pressItem(0), pressZone(CBHIT_NONE), openItem(0), tipItem(0),
           ownerItem(0), selIndex(-1), gutterW(0), shortcutW(0),
-          activeTab(0), hotTab(0)
+          activeTab(0), hotTab(0), minimized(false)
     {
         SetRectEmpty(&chevronRc);
         SetRectEmpty(&tabRc);

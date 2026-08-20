@@ -338,6 +338,11 @@ ReserveMode     PROCEDURE(),SIGNED
 !-- Pass -1 to go back to measuring.
 HostReserveBottom PROCEDURE(SIGNED px),PROC,VIRTUAL
 HostReserveHeight PROCEDURE(),SIGNED,VIRTUAL
+!-- Collapse a RIBBON bar to its tab strip, or open it again.  The user can
+!-- do it too: double-clicking a tab collapses and re-opens, and clicking a
+!-- tab on a collapsed ribbon opens it.
+MinimizeRibbon  PROCEDURE(SIGNED bar, BYTE minimized),PROC,VIRTUAL
+RibbonMinimized PROCEDURE(SIGNED bar),SIGNED,VIRTUAL
 HostMenuVisible PROCEDURE(),BYTE
 AddSubMenu      PROCEDURE(SIGNED container, STRING text, SIGNED menu, SIGNED image=0),SIGNED,PROC
 AddSpace        PROCEDURE(SIGNED container, SIGNED widthPx=0),SIGNED,PROC

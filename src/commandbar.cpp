@@ -1967,6 +1967,30 @@ void CBLayoutRibbon(CBManager* m, CBContainer* c, int availW)
 
     const int contentTop = padY + tabH;
 
+    /*  Collapsed: the tab strip is the whole bar.  The groups keep their
+        items but are left with empty rects, so nothing paints and nothing
+        can be hit until it is opened again. */
+    if (c->minimized)
+    {
+        CBContainer* act = CBFindContainer(m, c->activeTab);
+        if (act && act->kind == CBK_TAB)
+            for (size_t g = 0; g < act->items.size(); ++g)
+            {
+                CBContainer* grp = CBFindContainer(m, act->items[g]);
+                if (!grp) continue;
+                SetRectEmpty(&grp->groupRc);
+                for (size_t k = 0; k < grp->items.size(); ++k)
+                {
+                    CBItem* it = CBFindItem(m, grp->items[k]);
+                    if (it) { SetRectEmpty(&it->rc); SetRectEmpty(&it->arrow); }
+                }
+            }
+        c->rowCount = 1;
+        c->measH    = contentTop + padY;
+        c->measW    = availW > 0 ? availW : x + padX;
+        return;
+    }
+
     /* ---- the active tab's groups ---- */
     CBContainer* active = CBFindContainer(m, c->activeTab);
     int gx = padX + (int)(4 * m->dpiScale);
@@ -2088,6 +2112,26 @@ void CBLayoutRibbon(CBManager* m, CBContainer* c, int availW)
     c->rowCount = 1;
     c->measH    = contentTop + contH + capH + padY;
     c->measW    = availW > 0 ? availW : gx + padX;
+}
+
+void CBAPI CB_SetRibbonMinimized(HCB cb, int bar, int minimized)
+{
+    CBManager* m = (CBManager*)cb;
+    CBContainer* b = CBFindContainer(m, bar);
+    if (!b || b->kind != CBK_BAR || !(b->style & CBBS_RIBBON)) return;
+    const bool want = (minimized != 0);
+    if (b->minimized == want) return;
+    b->minimized = want;
+    CBRelayout(m);
+    if (b->hwnd) InvalidateRect(b->hwnd, NULL, FALSE);
+    CBQueue(m, 0, b->id, CBE_LAYOUT, want ? 1 : 0);
+}
+
+int CBAPI CB_GetRibbonMinimized(HCB cb, int bar)
+{
+    CBManager* m = (CBManager*)cb;
+    CBContainer* b = CBFindContainer(m, bar);
+    return (b && b->kind == CBK_BAR && b->minimized) ? 1 : 0;
 }
 
 /* The tab under a point, or 0. */

@@ -401,6 +401,11 @@ CBPump:%ActiveTemplateInstance ROUTINE
         #PROMPT('&Caption for the mirrored bar:',@s32),%CBFMenuBar,DEFAULT('Menu')
         #PROMPT('&Dock it on:',DROP('Top|Bottom|Left|Right')),%CBFMenuDock,DEFAULT('Top')
         #PROMPT('&Row (0 is nearest the edge):',SPIN(@n2,0,20,1)),%CBFMenuRow,DEFAULT(0)
+        #PROMPT('Drag &gripper',CHECK),%CBFMenuGripper,DEFAULT(0),AT(10)
+        #PROMPT('User may &float it',CHECK),%CBFMenuFloat,DEFAULT(0),AT(10)
+        #DISPLAY('   A gripper is the ribbed handle at the near end.  With it')
+        #DISPLAY('   the menu can be dragged to another edge, and - if you')
+        #DISPLAY('   allow floating - torn off into a little window.')
         #DISPLAY('')
         #DISPLAY('A Clarion MENUBAR ignores PROP:Hide - it is a real Win32')
         #DISPLAY('menu on the frame - so "take the original menu off" detaches')
@@ -460,7 +465,7 @@ CBMirrorBar:%ActiveTemplateInstance SIGNED                       ! the mirrored 
   #IF(%CBFMenuMode <> 'Leave the menu alone')
     !  Rebuild this frame's own MENUBAR as a command bar.  Mirrored rows
     !  POST EVENT:Accepted to the original ITEMs, so the menu embeds run.
-    CBMirrorBar:%ActiveTemplateInstance = %CBObject.AddBar('%CBFMenuBar',%(%CBDockEquate(%CBFMenuDock)),CBBS:MenuBar)
+    CBMirrorBar:%ActiveTemplateInstance = %CBObject.AddBar('%CBFMenuBar',%(%CBDockEquate(%CBFMenuDock)),%(%CBMirrorBarStyle()))
     %CBObject.SetBarDock(CBMirrorBar:%ActiveTemplateInstance,%(%CBDockEquate(%CBFMenuDock)),%CBFMenuRow,0)
     #IF(%CBFMenuMode = 'Mirror it and take the original menu off the frame')
     %CBObject.MirrorMenu(CBMirrorBar:%ActiveTemplateInstance,1)
@@ -707,6 +712,11 @@ CBPump:%ActiveTemplateInstance ROUTINE
       #DISPLAY('   (control template only - the extensions ignore it)')
       #PROMPT('Is the &menu bar',CHECK),%CBBarMenuBar,DEFAULT(0),AT(10)
       #PROMPT('Is a &ribbon',CHECK),%CBBarRibbon,DEFAULT(0),AT(10)
+      #ENABLE(%CBBarRibbon)
+        #PROMPT('Starts &collapsed to its tabs',CHECK),%CBBarRibbonMin,DEFAULT(0),AT(20)
+        #DISPLAY('   Double-clicking a tab collapses the ribbon and opens it')
+        #DISPLAY('   again; clicking a tab while collapsed opens it too.')
+      #ENDENABLE
       #PROMPT('Drag &gripper',CHECK),%CBBarGripper,DEFAULT(1),AT(10)
       #PROMPT('User may &float it',CHECK),%CBBarFloatable,DEFAULT(1),AT(10)
       #PROMPT('&Large icons',CHECK),%CBBarLargeIcons,DEFAULT(0),AT(10)
@@ -1019,6 +1029,9 @@ CBItm:%ActiveTemplateInstance:%CBn SIGNED                        ! %CBItemType i
     #ENDIF
     #IF(%CBBarHidden)
     %CBObject.SetBarVisible(CBBar:%ActiveTemplateInstance:%CBBarName,0)
+    #ENDIF
+    #IF(%CBBarRibbon AND %CBBarRibbonMin)
+    %CBObject.MinimizeRibbon(CBBar:%ActiveTemplateInstance:%CBBarName,1)
     #ENDIF
   #ENDFOR
   #!---- ribbon tabs ----
@@ -1386,6 +1399,21 @@ CBFit:%ActiveTemplateInstance ROUTINE
   #ENDCASE
 #!
 #!-----------------------------------------------------------------------------
+#! %CBMirrorBarStyle - the mirrored menu bar's CBBS: bits.  It is a menu bar
+#! first; the gripper and floating are the frame template's own options.
+#!-----------------------------------------------------------------------------
+#GROUP(%CBMirrorBarStyle),AUTO
+  #DECLARE(%CBMBits)
+  #SET(%CBMBits,'CBBS:MenuBar')
+  #IF(%CBFMenuGripper)
+    #SET(%CBMBits,%CBMBits & ' + CBBS:Gripper')
+  #ENDIF
+  #IF(%CBFMenuFloat)
+    #SET(%CBMBits,%CBMBits & ' + CBBS:Floatable')
+  #ENDIF
+  #RETURN(%CBMBits)
+#!
+#!-----------------------------------------------------------------------------
 #! %CBStyleNumber - the CBS: manager style bits as a plain number.
 #!-----------------------------------------------------------------------------
 #GROUP(%CBStyleNumber)
@@ -1407,6 +1435,34 @@ CBFit:%ActiveTemplateInstance ROUTINE
 #! %CBNextCmd - the next free command id, so a preset never collides with
 #! items already on the window.  Presets start at 1000.
 #!-----------------------------------------------------------------------------
+#!-----------------------------------------------------------------------------
+#! %CBFreeRow - the first row on this edge that no bar is using yet, so a
+#! preset never lands on top of a menu bar already sitting on row 0.
+#!-----------------------------------------------------------------------------
+#GROUP(%CBFreeRow,%pDock),AUTO
+  #DECLARE(%CBRowMax)
+  #DECLARE(%CBRowAny)
+  #SET(%CBRowMax,0)
+  #SET(%CBRowAny,0)
+  #FOR(%CBBarList),WHERE(%CBBarDock = %pDock)
+    #SET(%CBRowAny,1)
+    #IF(%CBBarRow > %CBRowMax)
+      #SET(%CBRowMax,%CBBarRow)
+    #ENDIF
+  #ENDFOR
+  #!  the frame template's mirrored menu bar is a bar too, and it is not in
+  #!  the list - it is built from the Menu tab
+  #IF(%CBFMenuMode <> 'Leave the menu alone' AND %CBFMenuDock = %pDock)
+    #SET(%CBRowAny,1)
+    #IF(%CBFMenuRow > %CBRowMax)
+      #SET(%CBRowMax,%CBFMenuRow)
+    #ENDIF
+  #ENDIF
+  #IF(%CBRowAny = 0)
+    #RETURN(0)
+  #ENDIF
+  #RETURN(%CBRowMax + 1)
+#!
 #GROUP(%CBNextCmd),AUTO
   #DECLARE(%CBHighCmd)
   #SET(%CBHighCmd,999)
@@ -1581,7 +1637,7 @@ CBFit:%ActiveTemplateInstance ROUTINE
   #SET(%CBBarName,%CBpBar)
   #SET(%CBBarTitle,'Standard')
   #SET(%CBBarDock,'Top')
-  #SET(%CBBarRow,0)
+  #SET(%CBBarRow,%CBFreeRow('Top'))
   #SET(%CBBarOffset,0)
   #SET(%CBBarGripper,1)
   #SET(%CBBarFloatable,1)
@@ -1664,7 +1720,7 @@ CBFit:%ActiveTemplateInstance ROUTINE
   #SET(%CBBarName,%CBpBar)
   #SET(%CBBarTitle,'Ribbon')
   #SET(%CBBarDock,'Top')
-  #SET(%CBBarRow,0)
+  #SET(%CBBarRow,%CBFreeRow('Top'))
   #SET(%CBBarOffset,0)
   #SET(%CBBarRibbon,1)
   #SET(%CBBarGripper,0)

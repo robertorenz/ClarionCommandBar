@@ -389,6 +389,12 @@ int   CBAPI CB_GetReserveSpace(HCB cb);
 void  CBAPI CB_SetHostReserveBottom(HCB cb, int px);
 int   CBAPI CB_GetHostReserveBottom(HCB cb);
 
+/* Collapse a ribbon to its tab strip, or open it again.  Double-clicking */
+/* a tab does the same thing, and clicking a tab on a collapsed ribbon    */
+/* opens it - the gestures Office taught everyone.                        */
+void  CBAPI CB_SetRibbonMinimized(HCB cb, int bar, int minimized);
+int   CBAPI CB_GetRibbonMinimized(HCB cb, int bar);
+
 #ifdef __cplusplus
 }
 #endif

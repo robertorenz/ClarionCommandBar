@@ -409,6 +409,25 @@ Clarion links them into the EXE; the manager finds them there by resource name
 whatever directory the program is started from. A copy sitting next to the EXE,
 or in an `images` folder beside it, is found too.
 
+### 5b11. A ribbon that collapses
+
+Tick **Starts collapsed to its tabs** on a bar marked *Is a ribbon* and it
+opens showing the tab strip alone, giving the window back the rest of the
+height. The gestures are the ones Office taught everyone:
+
+* **double-click a tab** — collapse it, and open it again
+* **click a tab while collapsed** — open it on that tab
+
+or say so yourself:
+
+```clarion
+CommandBar.MinimizeRibbon(CBBar:1:Ribbon, 1)     ! collapse
+IF CommandBar.RibbonMinimized(CBBar:1:Ribbon)
+```
+
+Measured on the showcase's ribbon: 109px open, 29px collapsed, and back to
+109 on the next tab click.
+
 ### 5c. Putting your own controls under the bars
 
 The bars take space off the top / bottom / sides of the window. Whatever is

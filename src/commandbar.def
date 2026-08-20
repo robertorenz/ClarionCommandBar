@@ -97,3 +97,6 @@ EXPORTS
 ;   ---- v1.3: the strip the host paints itself ----
     CB_SetHostReserveBottom @81
     CB_GetHostReserveBottom @82
+;   ---- v1.4: a ribbon that collapses ----
+    CB_SetRibbonMinimized @83
+    CB_GetRibbonMinimized @84
