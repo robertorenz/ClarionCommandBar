@@ -393,9 +393,22 @@ your own code in the embed points.
 
 | Tab | Button | What you get |
 |-----|--------|--------------|
-| **Bars** | *Add a standard toolbar* | a docked bar named `Standard` — New, Open, Save, Print, Cut, Copy, Paste, Undo, Redo, a search box, Find, and Help pushed to the far end — with icons, tooltips and the matching `Ctrl+N/O/S/P/F` and `F1` shortcuts |
+| **Bars** | *Add this toolbar*, with a **Toolbar** drop beside it | one of five classics — see below |
 | **Ribbon** | *Add a standard ribbon* | the ribbon from `CommandBarShowcase`, entry for entry: **Home** — Clipboard (big Paste, then Cut / Copy / Format), Font (font and size combos, **B** and *I* toggles, a colour button), Editing (big Find, then Replace / Go To); **Insert** — Pages, Illustrations, Links; **View** — Show (three tick boxes) and Zoom. Small icons go to 20px and large to 32px if they were still at their defaults, so the big buttons have room |
 | **Menus** | *Add this preset menu* | the popup named by the **Preset** drop beside it: **File**, **Edit**, **Browse row**, **View** or **Help** — with icons, shortcut text, and check marks where they belong |
+
+**The five toolbars:**
+
+| Preset | What is on it |
+|--------|---------------|
+| **Standard** | New, Open, Save ǀ Print ǀ Cut, Copy, Paste ǀ Undo, Redo ǀ a search box, Find ǀ Help pushed to the far end. `Ctrl+N/O/S/P/F` and `F1` |
+| **Formatting** | font and size combos ǀ **B** *I* <u>U</u> and a text-colour button ǀ left / centre / right ǀ bulleted and numbered lists. `Ctrl+B/I/U` |
+| **Browse and records** | the VCR keys ǀ Insert, Change, Delete ǀ a locator box, Locate, Sort, Mark ǀ Refresh ǀ Print at the far end. `Ctrl+F`, `F5` |
+| **Navigation** | Back, Forward, Stop, Refresh, Home ǀ an address box that **stretches** to eat the leftover width, Go ǀ Search. `F5` |
+| **Print and export** | Print, Preview ǀ an **Export drop button** carrying a menu of PDF, Excel, CSV, HTML, XML and plain text ǀ Refresh ǀ Close at the far end. `Ctrl+P`, `F5` |
+
+Each press starts a **new** bar on the first free row of the top edge, so you
+can stack two of them without them fighting over a row.
 
 Press one twice and you get `Standard2`, `Ribbon2`, `FileMenu2` — names become
 variables in the generated source, so they are kept unique. Command ids carry
