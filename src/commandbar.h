@@ -51,6 +51,10 @@ typedef void* HCB;          /* command-bar manager instance handle */
 #define CBI_PROGRESS   15   /* read-only bar, shows how far along       */
 #define CBI_GALLERY    16   /* grid of picture choices (a ribbon needs  */
                        /*   one of these to feel finished)              */
+/* The highest type there is.  CB_AddItem checks against THIS - adding a  */
+/* type without moving it turns every one of them into a plain button,    */
+/* silently, and only through the generic CB_AddItem.                     */
+#define CBI_LAST       CBI_GALLERY
 
 /* ---- item style flags (CB_SetItemStyle) --------------------------- */
 #define CBIS_TEXTONLY   0x0001  /* never draw the image               */

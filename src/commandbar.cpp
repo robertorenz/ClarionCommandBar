@@ -1523,7 +1523,7 @@ static int AddItemImpl(CBManager* m, int container, int beforeItem, int type,
 {
     CBContainer* c = CBFindContainer(m, container);
     if (!c) return 0;
-    if (type < CBI_BUTTON || type > CBI_SPACE) type = CBI_BUTTON;
+    if (type < CBI_BUTTON || type > CBI_LAST) type = CBI_BUTTON;
 
     CBItem* it = new CBItem();
     it->id        = m->nextItem++;
