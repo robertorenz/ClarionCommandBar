@@ -115,6 +115,16 @@ CB_GetHostReserveBottom PROCEDURE(LONG cb),SIGNED,PASCAL,NAME('CB_GetHostReserve
 CB_SetRibbonMinimized PROCEDURE(LONG cb, SIGNED bar, SIGNED minimized),PASCAL,NAME('CB_SetRibbonMinimized')
 CB_GetRibbonMinimized PROCEDURE(LONG cb, SIGNED bar),SIGNED,PASCAL,NAME('CB_GetRibbonMinimized')
 CB_SaveLayout        PROCEDURE(LONG cb, *CSTRING buf, SIGNED cbBuf),SIGNED,PASCAL,RAW,NAME('CB_SaveLayout')
+CB_AddSlider         PROCEDURE(LONG cb, SIGNED container, LONG cmd, SIGNED lo, SIGNED hi, SIGNED value, SIGNED width),SIGNED,PASCAL,NAME('CB_AddSlider')
+CB_AddSpin           PROCEDURE(LONG cb, SIGNED container, LONG cmd, SIGNED lo, SIGNED hi, SIGNED value, SIGNED width),SIGNED,PASCAL,NAME('CB_AddSpin')
+CB_AddProgress       PROCEDURE(LONG cb, SIGNED container, SIGNED lo, SIGNED hi, SIGNED value, SIGNED width),SIGNED,PASCAL,NAME('CB_AddProgress')
+CB_SetItemRange      PROCEDURE(LONG cb, SIGNED item, SIGNED lo, SIGNED hi),PASCAL,NAME('CB_SetItemRange')
+CB_SetItemNumber     PROCEDURE(LONG cb, SIGNED item, SIGNED value),PASCAL,NAME('CB_SetItemNumber')
+CB_GetItemNumber     PROCEDURE(LONG cb, SIGNED item),SIGNED,PASCAL,NAME('CB_GetItemNumber')
+CB_AddGallery        PROCEDURE(LONG cb, SIGNED container, LONG cmd, SIGNED columns, SIGNED cellW, SIGNED cellH),SIGNED,PASCAL,NAME('CB_AddGallery')
+CB_AddGalleryCell    PROCEDURE(LONG cb, SIGNED item, SIGNED image, *CSTRING text),SIGNED,PASCAL,RAW,NAME('CB_AddGalleryCell')
+CB_GetGallerySel     PROCEDURE(LONG cb, SIGNED item),SIGNED,PASCAL,NAME('CB_GetGallerySel')
+CB_SetGallerySel     PROCEDURE(LONG cb, SIGNED item, SIGNED index),PASCAL,NAME('CB_SetGallerySel')
 CB_LoadLayout        PROCEDURE(LONG cb, *CSTRING text),SIGNED,PASCAL,RAW,NAME('CB_LoadLayout')
 CB_GetReserveSpace   PROCEDURE(LONG cb),SIGNED,PASCAL,NAME('CB_GetReserveSpace')
 CB_GetHostMenuVisible PROCEDURE(LONG cb),SIGNED,PASCAL,NAME('CB_GetHostMenuVisible')
@@ -1414,6 +1424,68 @@ txt STRING(4096)
   END
   RETURN SELF.RestoreLayout(CLIP(txt))
 
+
+
+!---------------------------------------------------------------------
+!  Items that carry a number, and galleries
+!---------------------------------------------------------------------
+CommandBarClass.AddSlider PROCEDURE(SIGNED container, LONG cmd, SIGNED lo, SIGNED hi, SIGNED value, SIGNED width=0)
+  CODE
+  IF ~SELF.CB THEN RETURN 0.
+  RETURN CB_AddSlider(SELF.CB, container, cmd, lo, hi, value, width)
+
+
+CommandBarClass.AddSpin PROCEDURE(SIGNED container, LONG cmd, SIGNED lo, SIGNED hi, SIGNED value, SIGNED width=0)
+  CODE
+  IF ~SELF.CB THEN RETURN 0.
+  RETURN CB_AddSpin(SELF.CB, container, cmd, lo, hi, value, width)
+
+
+CommandBarClass.AddProgress PROCEDURE(SIGNED container, SIGNED lo, SIGNED hi, SIGNED value, SIGNED width=0)
+  CODE
+  IF ~SELF.CB THEN RETURN 0.
+  RETURN CB_AddProgress(SELF.CB, container, lo, hi, value, width)
+
+
+CommandBarClass.SetItemRange PROCEDURE(SIGNED item, SIGNED lo, SIGNED hi)
+  CODE
+  IF SELF.CB THEN CB_SetItemRange(SELF.CB, item, lo, hi).
+
+
+CommandBarClass.SetItemNumber PROCEDURE(SIGNED item, SIGNED value)
+  CODE
+  IF SELF.CB THEN CB_SetItemNumber(SELF.CB, item, value).
+
+
+CommandBarClass.ItemNumber PROCEDURE(SIGNED item)
+  CODE
+  IF ~SELF.CB THEN RETURN 0.
+  RETURN CB_GetItemNumber(SELF.CB, item)
+
+
+CommandBarClass.AddGallery PROCEDURE(SIGNED container, LONG cmd, SIGNED columns=4, SIGNED cellW=56, SIGNED cellH=48)
+  CODE
+  IF ~SELF.CB THEN RETURN 0.
+  RETURN CB_AddGallery(SELF.CB, container, cmd, columns, cellW, cellH)
+
+
+CommandBarClass.AddGalleryCell PROCEDURE(SIGNED item, SIGNED image, STRING text)
+s CSTRING(129)
+  CODE
+  IF ~SELF.CB THEN RETURN -1.
+  s = CLIP(text)
+  RETURN CB_AddGalleryCell(SELF.CB, item, image, s)
+
+
+CommandBarClass.GallerySel PROCEDURE(SIGNED item)
+  CODE
+  IF ~SELF.CB THEN RETURN -1.
+  RETURN CB_GetGallerySel(SELF.CB, item)
+
+
+CommandBarClass.SetGallerySel PROCEDURE(SIGNED item, SIGNED index)
+  CODE
+  IF SELF.CB THEN CB_SetGallerySel(SELF.CB, item, index).
 
 !---------------------------------------------------------------------
 ! the event pump

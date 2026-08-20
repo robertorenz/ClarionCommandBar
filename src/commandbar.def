@@ -103,3 +103,14 @@ EXPORTS
 ;   ---- v1.5: remembering the layout ----
     CB_SaveLayout        @85
     CB_LoadLayout        @86
+;   ---- v1.6: sliders, spins, progress and galleries ----
+    CB_AddSlider         @87
+    CB_AddSpin           @88
+    CB_AddProgress       @89
+    CB_SetItemRange      @90
+    CB_SetItemNumber     @91
+    CB_GetItemNumber     @92
+    CB_AddGallery        @93
+    CB_AddGalleryCell    @94
+    CB_GetGallerySel     @95
+    CB_SetGallerySel     @96

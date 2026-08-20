@@ -132,6 +132,15 @@ struct CBItem
     std::vector<std::wstring> combo;
     int           comboSel;
 
+    /*  A slider, a spin box and a progress bar are the same three
+        numbers wearing different clothes. */
+    int           vlo, vhi, vval;
+
+    /*  A gallery's cells, and how they are arranged. */
+    struct Cell { int image; std::wstring text; };
+    std::vector<Cell> cells;
+    int           gCols, gCellW, gCellH, gSel, gHot;
+
     /* ---- filled in by the layout pass ---- */
     RECT          rc;            /* whole item, container client coords */
     RECT          arrow;         /* the drop-arrow zone (SPLIT/COLOR)   */
@@ -142,6 +151,8 @@ struct CBItem
         : id(0), container(0), type(CBI_BUTTON), cmd(0), underline(-1),
           image(0), style(0), enabled(true), checked(false), visible(true),
           menu(0), width(0), color(RGB(0, 0, 0)), comboSel(-1),
+          vlo(0), vhi(100), vval(0),
+          gCols(4), gCellW(56), gCellH(48), gSel(-1), gHot(-1),
           row(0), overflow(false)
     {
         SetRectEmpty(&rc);
@@ -371,6 +382,7 @@ struct CBManager
     POINT          dragOff;      /* grab point inside the bar          */
     POINT          dragStart;    /* screen, for the movement threshold */
     bool           dragActive;   /* past the threshold                 */
+    int            slideItem;    /* the slider the mouse is dragging   */
     HWND           dragHint;
     int            dragDock;     /* CBD_* the drop would apply         */
     int            dragRow;
@@ -398,7 +410,7 @@ struct CBManager
           menuSwitchItem(0), suppressContainer(0), hostMenu(NULL),
 
           reserve(-1),
-          dragBar(0), dragActive(false), dragHint(NULL),
+          dragBar(0), dragActive(false), slideItem(0), dragHint(NULL),
           dragDock(CBD_FLOAT), dragRow(0), dragApply(0),
           editWnd(NULL), editOldProc(NULL),
           editItem(0), editFont(NULL)

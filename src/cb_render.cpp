@@ -947,6 +947,46 @@ static ItemState ResolveState(CBContainer* c, CBItem* it)
     return s;
 }
 
+/*  Which gallery cell is under this point, or -1. */
+static int CBGalleryCellAt(CBManager* m, CBItem* it, POINT p)
+{
+    if (!it || it->type != CBI_GALLERY) return -1;
+    const int cw = (int)(it->gCellW * m->dpiScale);
+    const int ch = (int)(it->gCellH * m->dpiScale);
+    const int cols = it->gCols > 0 ? it->gCols : 4;
+    const int x0 = it->rc.left + CBMetric(m, CBM_PADX);
+    const int y0 = it->rc.top  + CBMetric(m, CBM_PADY);
+    if (p.x < x0 || p.y < y0 || cw < 1 || ch < 1) return -1;
+    const int col = (p.x - x0) / cw;
+    const int row = (p.y - y0) / ch;
+    if (col < 0 || col >= cols) return -1;
+    /*  the same rule the painter uses, so nothing invisible is clickable */
+    if (y0 + (row + 1) * ch > it->rc.bottom) return -1;
+    if (x0 + (col + 1) * cw > it->rc.right)  return -1;
+    const int k = row * cols + col;
+    return (k >= 0 && k < (int)it->cells.size()) ? k : -1;
+}
+
+/*  Put a slider where the pointer is, and say so if it moved. */
+static void CBSlideTo(CBManager* m, CBContainer* c, CBItem* it, int x)
+{
+    const int padX = CBMetric(m, CBM_PADX);
+    int lo = it->rc.left + padX, hi = it->rc.right - padX;
+    if (hi <= lo) return;
+    if (x < lo) x = lo;
+    if (x > hi) x = hi;
+
+    const int span = it->vhi - it->vlo;
+    int v = it->vlo + (int)(((float)(x - lo) / (float)(hi - lo)) * span + 0.5f);
+    if (v < it->vlo) v = it->vlo;
+    if (v > it->vhi) v = it->vhi;
+    if (v == it->vval) return;
+
+    it->vval = v;
+    InvalidateRect(c->hwnd, NULL, FALSE);
+    CBQueue(m, it->id, it->cmd, CBE_VALUECHANGED, v);
+}
+
 static void DrawItemBackground(CBManager* m, CBContainer* c, CBItem* it,
                                const ItemState& st, float radius)
 {
@@ -1064,6 +1104,138 @@ static void DrawBarItem(CBManager* m, CBContainer* c, CBItem* it)
     }
     default:
         break;
+    }
+
+    /*  A slider, a spin box, a progress bar and a gallery.  None of them
+        wants the ordinary button background, so each returns before the
+        code below gets to it. */
+    if (it->type == CBI_SLIDER || it->type == CBI_PROGRESS)
+    {
+        const bool prog = (it->type == CBI_PROGRESS);
+        const int  span = it->vhi - it->vlo;
+        const float frac = span > 0
+            ? (float)(it->vval - it->vlo) / (float)span : 0.0f;
+
+        RECT track = it->rc;
+        InflateRect(&track, -CBMetric(m, CBM_PADX), 0);
+        const int mid = (track.top + track.bottom) / 2;
+        const int th  = prog ? (int)(10 * m->dpiScale) : (int)(4 * m->dpiScale);
+        track.top     = mid - th / 2;
+        track.bottom  = track.top + th;
+
+        const float rad2 = (float)th * 0.5f;
+        FillBox(c, track, m->col[CBC_EDITBORDER], rad2);
+
+        RECT done = track;
+        done.right = track.left + (int)((track.right - track.left) * frac + 0.5f);
+        if (done.right > done.left)
+            FillBox(c, done, st.disabled ? m->col[CBC_ITEMTEXTDIS]
+                                         : m->col[CBC_ACCENT], rad2);
+
+        if (!prog)
+        {
+            /*  The thumb is what says "drag me", so it is drawn as a real
+                object rather than a notch in the track. */
+            const int r = (int)(6 * m->dpiScale);
+            RECT thumb;
+            thumb.left   = done.right - r;
+            thumb.right  = done.right + r;
+            thumb.top    = mid - r;
+            thumb.bottom = mid + r;
+            if (thumb.left  < it->rc.left)  { thumb.left = it->rc.left; thumb.right = thumb.left + 2 * r; }
+            if (thumb.right > it->rc.right) { thumb.right = it->rc.right; thumb.left = thumb.right - 2 * r; }
+            FillBox(c, thumb, st.hot || m->slideItem == it->id
+                              ? m->col[CBC_ACCENT] : m->col[CBC_BARBACK], (float)r);
+            StrokeBox(c, thumb, st.disabled ? m->col[CBC_ITEMTEXTDIS]
+                                            : m->col[CBC_ACCENT], (float)r);
+        }
+        else if (!it->text.empty())
+        {
+            DrawLine1(c, CBF_ITEM, false, it->text, -1, it->rc, textCol,
+                      DWRITE_TEXT_ALIGNMENT_CENTER, true);
+        }
+        return;
+    }
+
+    if (it->type == CBI_SPIN)
+    {
+        RECT box = it->rc;
+        InflateRect(&box, -1, -1);
+        FillBox(c, box, m->col[CBC_EDITBACK], 3.0f);
+        StrokeBox(c, box, st.disabled ? m->col[CBC_ITEMTEXTDIS]
+                                      : m->col[CBC_EDITBORDER], 3.0f);
+
+        const int aw = (int)(13 * m->dpiScale);
+        RECT tr = box;
+        tr.right -= aw;
+        tr.left  += (int)(4 * m->dpiScale);
+
+        wchar_t num[24];
+        _snwprintf_s(num, 24, _TRUNCATE, L"%d", it->vval);
+        DrawLine1(c, CBF_ITEM, false, num, -1, tr,
+                  st.disabled ? m->col[CBC_ITEMTEXTDIS] : m->col[CBC_EDITTEXT],
+                  DWRITE_TEXT_ALIGNMENT_LEADING, true);
+
+        const float cx = (float)(box.right - aw / 2);
+        const float cy = (float)((box.top + box.bottom) / 2);
+        const COLORREF ac = st.disabled ? m->col[CBC_ITEMTEXTDIS] : m->col[CBC_EDITTEXT];
+        DrawArrow(c, cx, cy - (float)(4 * m->dpiScale), 7.0f, ac, 2);   /* up   */
+        DrawArrow(c, cx, cy + (float)(4 * m->dpiScale), 7.0f, ac, 0);   /* down */
+        return;
+    }
+
+    if (it->type == CBI_GALLERY)
+    {
+        const int cw = (int)(it->gCellW * m->dpiScale);
+        const int ch = (int)(it->gCellH * m->dpiScale);
+        const int cols = it->gCols > 0 ? it->gCols : 4;
+        const int x0 = it->rc.left + CBMetric(m, CBM_PADX);
+        const int y0 = it->rc.top  + CBMetric(m, CBM_PADY);
+
+        for (size_t k = 0; k < it->cells.size(); ++k)
+        {
+            RECT cell;
+            cell.left   = x0 + (int)(k % cols) * cw;
+            cell.top    = y0 + (int)(k / cols) * ch;
+            cell.right  = cell.left + cw;
+            cell.bottom = cell.top + ch;
+
+            /*  A ribbon group is only so tall.  Rather than let a row
+                spill out of the bar, cells that do not fit are simply
+                not drawn - size the cells, or the gallery, to suit. */
+            if (cell.bottom > it->rc.bottom || cell.right > it->rc.right) break;
+
+            RECT inner = cell;
+            InflateRect(&inner, -2, -2);
+            if ((int)k == it->gSel)
+            {
+                FillBox(c, inner, m->col[CBC_CHECKBACK], radius);
+                StrokeBox(c, inner, m->col[CBC_ACCENT], radius);
+            }
+            else if ((int)k == it->gHot)
+            {
+                FillBox(c, inner, m->col[CBC_HOTBACK], radius);
+            }
+
+            const CBItem::Cell& cl = it->cells[k];
+            int iy = inner.top + (int)(4 * m->dpiScale);
+            if (cl.image > 0)
+            {
+                int isz = CBMetric(m, CBM_LARGEICON);
+                if (isz > ch - 20) isz = ch - 20;
+                DrawImageAt(c, cl.image, (inner.left + inner.right) / 2 - isz / 2,
+                            iy, isz, !st.disabled);
+                iy += isz + 2;
+            }
+            if (!cl.text.empty())
+            {
+                RECT tr = inner;
+                tr.top = iy;
+                DrawLine1(c, CBF_ITEM, false, cl.text, -1, tr, textCol,
+                          DWRITE_TEXT_ALIGNMENT_CENTER, false);
+            }
+        }
+        return;
     }
 
     DrawItemBackground(m, c, it, st, radius);
@@ -1849,6 +2021,7 @@ long CBTrackPopup(CBManager* m, int menu, int x, int y, int ownerItem,
         case WM_MOUSEMOVE:
         case WM_LBUTTONDOWN:
         case WM_LBUTTONUP:
+
         case WM_LBUTTONDBLCLK:
         case WM_RBUTTONDOWN:
         case WM_RBUTTONUP:
@@ -2653,6 +2826,25 @@ LRESULT CALLBACK CBBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         tme.dwHoverTime = 0;
         TrackMouseEvent(&tme);
 
+        if (m->slideItem)
+        {
+            CBItem* sl = CBFindItem(m, m->slideItem);
+            if (sl) CBSlideTo(m, c, sl, p.x);
+            return 0;
+        }
+
+        /*  a gallery lights the cell under the pointer */
+        {
+            int zone2 = 0;
+            int hv = CBItemHitTest(m, c, p, &zone2);
+            CBItem* gi = (hv > 0) ? CBFindItem(m, hv) : NULL;
+            if (gi && gi->type == CBI_GALLERY)
+            {
+                int k = CBGalleryCellAt(m, gi, p);
+                if (k != gi->gHot) { gi->gHot = k; InvalidateRect(hwnd, NULL, FALSE); }
+            }
+        }
+
         if (c->style & CBBS_RIBBON)
         {
             int ht = CBTabHitTest(m, c, p);
@@ -2798,6 +2990,42 @@ LRESULT CALLBACK CBBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         CBItem* it = CBFindItem(m, hit);
         if (!it || !it->enabled) return 0;
 
+        /*  The three that care WHERE they were clicked, not just that
+            they were.  ActivateItem is handed an item and a zone, which
+            is not enough for any of these. */
+        if (it->type == CBI_SLIDER)
+        {
+            m->slideItem = it->id;          /* follow the mouse until it lifts */
+            SetCapture(hwnd);
+            CBSlideTo(m, c, it, p.x);
+            return 0;
+        }
+        if (it->type == CBI_SPIN)
+        {
+            const int step = (p.y < (it->rc.top + it->rc.bottom) / 2) ? 1 : -1;
+            int v = it->vval + step;
+            if (v < it->vlo) v = it->vlo;
+            if (v > it->vhi) v = it->vhi;
+            if (v != it->vval)
+            {
+                it->vval = v;
+                InvalidateRect(hwnd, NULL, FALSE);
+                CBQueue(m, it->id, it->cmd, CBE_VALUECHANGED, v);
+            }
+            return 0;
+        }
+        if (it->type == CBI_GALLERY)
+        {
+            int k = CBGalleryCellAt(m, it, p);
+            if (k >= 0)
+            {
+                it->gSel = k;
+                InvalidateRect(hwnd, NULL, FALSE);
+                CBQueue(m, it->id, it->cmd, CBE_COMMAND, k);
+            }
+            return 0;
+        }
+
         bool opensMenu = it->menu &&
                          (it->type == CBI_DROPDOWN || it->type == CBI_MENU ||
                           (zone == CBHIT_ARROW &&
@@ -2823,6 +3051,14 @@ LRESULT CALLBACK CBBarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     }
 
     case WM_LBUTTONUP:
+        /*  Letting go of a slider.  Checked before anything else: while
+            one is being dragged the capture belongs to it. */
+        if (m->slideItem)
+        {
+            m->slideItem = 0;
+            if (GetCapture() == hwnd) ReleaseCapture();
+            return 0;
+        }
     {
         if (m->dragBar == c->id)
         {

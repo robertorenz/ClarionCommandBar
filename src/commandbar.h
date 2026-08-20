@@ -46,6 +46,11 @@ typedef void* HCB;          /* command-bar manager instance handle */
 #define CBI_COLOR      10   /* swatch button + colour picker           */
 #define CBI_MENU       11   /* top-level menu title on a menu bar      */
 #define CBI_SPACE      12   /* flexible gap: pushes what follows right */
+#define CBI_SLIDER     13   /* track and thumb, drag to set a value     */
+#define CBI_SPIN       14   /* number with up / down arrows             */
+#define CBI_PROGRESS   15   /* read-only bar, shows how far along       */
+#define CBI_GALLERY    16   /* grid of picture choices (a ribbon needs  */
+                       /*   one of these to feel finished)              */
 
 /* ---- item style flags (CB_SetItemStyle) --------------------------- */
 #define CBIS_TEXTONLY   0x0001  /* never draw the image               */
@@ -174,6 +179,7 @@ typedef void* HCB;          /* command-bar manager instance handle */
                             /* rect and move your own controls        */
 #define CBE_RCLICK       8  /* right button released on an item       */
 #define CBE_TABCHANGED   9  /* ribbon tab switched (param = tab id)    */
+#define CBE_VALUECHANGED 10 /* slider / spin moved (param = the value) */
 
 /* ---- lifetime ----------------------------------------------------- */
 int   CBAPI CB_Initialize(void);            /* once per process       */
@@ -403,6 +409,26 @@ int   CBAPI CB_GetRibbonMinimized(HCB cb, int bar);
 /* Bars are matched by TITLE on the way back in, so inserting or         */
 /* removing one between releases does not hand an old position to the    */
 /* wrong bar; anything unrecognised is ignored.                          */
+/* ---- items that carry a number ------------------------------------- */
+/* A slider, a spin box and a progress bar are one idea with three faces: */
+/* a value between two bounds.  The first two raise CBE_VALUECHANGED as   */
+/* the user moves them; a progress bar is yours to drive.                 */
+int   CBAPI CB_AddSlider(HCB cb, int container, long cmd, int lo, int hi, int value, int width);
+int   CBAPI CB_AddSpin(HCB cb, int container, long cmd, int lo, int hi, int value, int width);
+int   CBAPI CB_AddProgress(HCB cb, int container, int lo, int hi, int value, int width);
+void  CBAPI CB_SetItemRange(HCB cb, int item, int lo, int hi);
+void  CBAPI CB_SetItemNumber(HCB cb, int item, int value);
+int   CBAPI CB_GetItemNumber(HCB cb, int item);
+
+/* ---- galleries ------------------------------------------------------ */
+/* A grid of picture choices, sized in CELLS.  Add the cells in the order */
+/* they should read; clicking one selects it and raises CBE_COMMAND with  */
+/* the cell's index as the parameter.                                     */
+int   CBAPI CB_AddGallery(HCB cb, int container, long cmd, int columns, int cellW, int cellH);
+int   CBAPI CB_AddGalleryCell(HCB cb, int item, int image, const char* text);
+int   CBAPI CB_GetGallerySel(HCB cb, int item);
+void  CBAPI CB_SetGallerySel(HCB cb, int item, int index);
+
 int   CBAPI CB_SaveLayout(HCB cb, char* buf, int cbBuf);
 int   CBAPI CB_LoadLayout(HCB cb, const char* text);
 

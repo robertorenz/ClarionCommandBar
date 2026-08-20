@@ -46,6 +46,10 @@ CBI:CheckBox    EQUATE(9)
 CBI:Color       EQUATE(10)  ! swatch button + colour picker
 CBI:Menu        EQUATE(11)  ! top-level title on a menu bar
 CBI:Space       EQUATE(12)  ! flexible gap - pushes what follows right
+CBI:Slider      EQUATE(13)   ! track and thumb, drag to set a value
+CBI:Spin        EQUATE(14)   ! number with up / down arrows
+CBI:Progress    EQUATE(15)   ! read-only, shows how far along
+CBI:Gallery     EQUATE(16)   ! grid of picture choices
 
 !---- item style flags -----------------------------------------------
 CBIS:TextOnly   EQUATE(0001h)
@@ -170,6 +174,7 @@ CBE:ColorChanged EQUATE(6)
 CBE:Layout       EQUATE(7)
 CBE:RightClick   EQUATE(8)
 CBE:TabChanged   EQUATE(9)   ! ribbon tab switched (LastParam = tab id)
+CBE:ValueChanged EQUATE(10)  ! a slider or spin moved (param = the value)
 
 !---- accelerator modifier flags -------------------------------------
 ! NOTE these are NOT in the same bit order as a Clarion KEYCODE (which
@@ -334,6 +339,24 @@ ShowHostToolbar PROCEDURE(SIGNED toolbarFeq, BYTE visible),VIRTUAL
 !-- one sits, whether a ribbon is collapsed.  RestoreLayout takes it back.
 !-- Bars are matched by TITLE, so adding or removing one between releases
 !-- does not hand an old position to the wrong bar.
+!-- Items that carry a NUMBER.  A slider, a spin box and a progress bar are
+!-- one idea wearing three faces: a value between two bounds.  The first two
+!-- raise CBE:ValueChanged as the user moves them, with the new value in
+!-- LastParam; a progress bar is yours to drive.
+AddSlider       PROCEDURE(SIGNED container, LONG cmd, SIGNED lo, SIGNED hi, SIGNED value, SIGNED width=0),SIGNED,PROC
+AddSpin         PROCEDURE(SIGNED container, LONG cmd, SIGNED lo, SIGNED hi, SIGNED value, SIGNED width=0),SIGNED,PROC
+AddProgress     PROCEDURE(SIGNED container, SIGNED lo, SIGNED hi, SIGNED value, SIGNED width=0),SIGNED,PROC
+SetItemRange    PROCEDURE(SIGNED item, SIGNED lo, SIGNED hi)
+SetItemNumber   PROCEDURE(SIGNED item, SIGNED value)
+ItemNumber      PROCEDURE(SIGNED item),SIGNED
+!-- A GALLERY: a grid of picture choices, sized in CELLS, which is what a
+!-- ribbon group wants when a row of buttons will not do.  Clicking a cell
+!-- selects it and raises CBE:Command with the cell's index in LastParam.
+!-- Only the cells that FIT are drawn, so size them to the group.
+AddGallery      PROCEDURE(SIGNED container, LONG cmd, SIGNED columns=4, SIGNED cellW=56, SIGNED cellH=48),SIGNED,PROC
+AddGalleryCell  PROCEDURE(SIGNED item, SIGNED image, STRING text),SIGNED,PROC
+GallerySel      PROCEDURE(SIGNED item),SIGNED
+SetGallerySel   PROCEDURE(SIGNED item, SIGNED index)
 LayoutText      PROCEDURE(),STRING,VIRTUAL
 RestoreLayout   PROCEDURE(STRING text),SIGNED,PROC,VIRTUAL
 !-- The same thing, kept in an INI for you.  Call SaveLayoutTo before the

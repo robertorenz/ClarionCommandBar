@@ -155,6 +155,29 @@ void CBMeasureItem(CBManager* m, CBContainer* c, CBItem* it, int* pw, int* ph)
         if (wantText) w += (int)(5 * m->dpiScale) + textW;
         break;
 
+    case CBI_SLIDER:
+        w = it->width > 0 ? (int)(it->width * m->dpiScale) : (int)(120 * m->dpiScale);
+        break;
+
+    case CBI_PROGRESS:
+        w = it->width > 0 ? (int)(it->width * m->dpiScale) : (int)(120 * m->dpiScale);
+        break;
+
+    case CBI_SPIN:
+        w = it->width > 0 ? (int)(it->width * m->dpiScale) : (int)(64 * m->dpiScale);
+        break;
+
+    case CBI_GALLERY:
+    {
+        int cols = it->gCols > 0 ? it->gCols : 4;
+        int rows = ((int)it->cells.size() + cols - 1) / cols;
+        if (rows < 1) rows = 1;
+        w = cols * (int)(it->gCellW * m->dpiScale) + 2 * padX;
+        h = rows * (int)(it->gCellH * m->dpiScale) + 2 * padY;
+        if (h < baseH) h = baseH;
+        break;
+    }
+
     default:
         if (it->style & CBIS_TEXTBELOW)
         {
@@ -2076,6 +2099,27 @@ void CBLayoutRibbon(CBManager* m, CBContainer* c, int availW)
                 it->overflow = false;
                 if (!it->visible) continue;
 
+                /*  A gallery is its own shape: it asks for a width and a
+                    height of its own and takes a column to itself, rather
+                    than being stacked three-deep like a small item or
+                    stretched to the group height like a large one. */
+                if (it->type == CBI_GALLERY)
+                {
+                    if (rowInCol) { colX += colW + gap; rowInCol = 0; colW = 0; }
+                    int gw = 0, gh = 0;
+                    CBMeasureItem(m, c, it, &gw, &gh);
+                    it->rc.left   = colX;
+                    it->rc.right  = colX + gw;
+                    it->rc.top    = contentTop + padY;
+                    it->rc.bottom = it->rc.top + gh;
+                    /*  never taller than the group has room for */
+                    if (it->rc.bottom > contentTop + contH - padY)
+                        it->rc.bottom = contentTop + contH - padY;
+                    colX += gw + gap;
+                    c->laid.push_back(it->id);
+                    continue;
+                }
+
                 bool large = (it->style & CBIS_TEXTBELOW) != 0;
                 float tw = 0;
                 if (!it->text.empty() && !(it->style & CBIS_ICONONLY))
@@ -2808,6 +2852,143 @@ static std::string CBQuoteTitle(const std::wstring& w)
         out += ch;
     }
     return out;
+}
+
+/*=====================================================================
+  Items that carry a number, and galleries
+
+  A slider, a spin box and a progress bar are one idea wearing three
+  faces - a value between two bounds - so they share their storage and
+  differ only in how they are drawn and what the mouse does to them.
+  =====================================================================*/
+static CBItem* CBNewValueItem(CBManager* m, int container, int type, long cmd,
+                              int lo, int hi, int value, int width)
+{
+    CBContainer* c = CBFindContainer(m, container);
+    if (!c) return NULL;
+    if (hi <= lo) hi = lo + 1;
+
+    CBItem* it = new CBItem();
+    it->id        = m->nextItem++;
+    it->container = container;
+    it->type      = type;
+    it->cmd       = cmd;
+    it->width     = width;
+    it->vlo       = lo;
+    it->vhi       = hi;
+    it->vval      = value < lo ? lo : (value > hi ? hi : value);
+    m->items[it->id] = it;
+    c->items.push_back(it->id);
+    CBRelayout(m);
+    return it;
+}
+
+int CBAPI CB_AddSlider(HCB cb, int container, long cmd, int lo, int hi, int value, int width)
+{
+    CBManager* m = (CBManager*)cb;
+    if (!m) return 0;
+    CBItem* it = CBNewValueItem(m, container, CBI_SLIDER, cmd, lo, hi, value, width);
+    return it ? it->id : 0;
+}
+
+int CBAPI CB_AddSpin(HCB cb, int container, long cmd, int lo, int hi, int value, int width)
+{
+    CBManager* m = (CBManager*)cb;
+    if (!m) return 0;
+    CBItem* it = CBNewValueItem(m, container, CBI_SPIN, cmd, lo, hi, value, width);
+    return it ? it->id : 0;
+}
+
+int CBAPI CB_AddProgress(HCB cb, int container, int lo, int hi, int value, int width)
+{
+    CBManager* m = (CBManager*)cb;
+    if (!m) return 0;
+    CBItem* it = CBNewValueItem(m, container, CBI_PROGRESS, 0, lo, hi, value, width);
+    return it ? it->id : 0;
+}
+
+void CBAPI CB_SetItemRange(HCB cb, int item, int lo, int hi)
+{
+    CBManager* m = (CBManager*)cb;
+    CBItem* it = CBFindItem(m, item);
+    if (!it) return;
+    if (hi <= lo) hi = lo + 1;
+    it->vlo = lo;
+    it->vhi = hi;
+    if (it->vval < lo) it->vval = lo;
+    if (it->vval > hi) it->vval = hi;
+    Touch(m, it, false);
+}
+
+void CBAPI CB_SetItemNumber(HCB cb, int item, int value)
+{
+    CBManager* m = (CBManager*)cb;
+    CBItem* it = CBFindItem(m, item);
+    if (!it) return;
+    if (value < it->vlo) value = it->vlo;
+    if (value > it->vhi) value = it->vhi;
+    if (value == it->vval) return;
+    it->vval = value;
+    Touch(m, it, false);
+}
+
+int CBAPI CB_GetItemNumber(HCB cb, int item)
+{
+    CBManager* m = (CBManager*)cb;
+    CBItem* it = CBFindItem(m, item);
+    return it ? it->vval : 0;
+}
+
+int CBAPI CB_AddGallery(HCB cb, int container, long cmd, int columns, int cellW, int cellH)
+{
+    CBManager* m = (CBManager*)cb;
+    if (!m) return 0;
+    CBContainer* c = CBFindContainer(m, container);
+    if (!c) return 0;
+
+    CBItem* it = new CBItem();
+    it->id        = m->nextItem++;
+    it->container = container;
+    it->type      = CBI_GALLERY;
+    it->cmd       = cmd;
+    it->gCols     = columns > 0 ? columns : 4;
+    it->gCellW    = cellW > 8 ? cellW : 56;
+    it->gCellH    = cellH > 8 ? cellH : 48;
+    m->items[it->id] = it;
+    c->items.push_back(it->id);
+    CBRelayout(m);
+    return it->id;
+}
+
+int CBAPI CB_AddGalleryCell(HCB cb, int item, int image, const char* text)
+{
+    CBManager* m = (CBManager*)cb;
+    CBItem* it = CBFindItem(m, item);
+    if (!it || it->type != CBI_GALLERY) return -1;
+    CBItem::Cell cell;
+    cell.image = image;
+    cell.text  = CBStripAmp(CBToWide(text ? text : ""), NULL);
+    it->cells.push_back(cell);
+    if (it->gSel < 0) it->gSel = 0;
+    CBRelayout(m);
+    return (int)it->cells.size() - 1;
+}
+
+int CBAPI CB_GetGallerySel(HCB cb, int item)
+{
+    CBManager* m = (CBManager*)cb;
+    CBItem* it = CBFindItem(m, item);
+    return (it && it->type == CBI_GALLERY) ? it->gSel : -1;
+}
+
+void CBAPI CB_SetGallerySel(HCB cb, int item, int index)
+{
+    CBManager* m = (CBManager*)cb;
+    CBItem* it = CBFindItem(m, item);
+    if (!it || it->type != CBI_GALLERY) return;
+    if (index < -1 || index >= (int)it->cells.size()) return;
+    it->gSel = index;
+    Touch(m, it, false);
 }
 
 int CBAPI CB_SaveLayout(HCB cb, char* buf, int cbBuf)

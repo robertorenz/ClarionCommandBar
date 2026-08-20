@@ -18,6 +18,7 @@ static int  g_startTheme = 0;      /* testhost.exe 7  starts on theme 7 */
 static char g_last[256] = "Ready.";
 static int  g_barMain = 0, g_barMenu = 0, g_barSide = 0, g_barFmt = 0;
 static int  g_barRibbon = 0;
+static int g_itemZoom, g_itemSpin, g_itemProg;
 static int  g_itemBold = 0, g_itemFont = 0, g_itemFind = 0, g_itemColor = 0;
 
 /* ---- command ids ---- */
@@ -234,7 +235,17 @@ static void BuildBars(HWND hwnd)
     CB_AddItem(g_cb, g_barFmt, CBI_BUTTON, 502, "Centre", 0);
     CB_AddItem(g_cb, g_barFmt, CBI_BUTTON, 503, "Right", 0);
 
+    /* ---- the items that carry a number ---- */
+    CB_AddItem(g_cb, g_barFmt, CBI_SEPARATOR, 0, "", 0);
+    CB_AddItem(g_cb, g_barFmt, CBI_LABEL, 0, "Zoom:", 0);
+    g_itemZoom = CB_AddSlider(g_cb, g_barFmt, 601, 10, 400, 100, 130);
+    g_itemSpin = CB_AddSpin(g_cb, g_barFmt, 602, 1, 99, 12, 60);
+    CB_AddItem(g_cb, g_barFmt, CBI_SEPARATOR, 0, "", 0);
+    g_itemProg = CB_AddProgress(g_cb, g_barFmt, 0, 100, 62, 130);
+    CB_SetItemText(g_cb, g_itemProg, "62%");
+
     /* ---------------- a ribbon: tabs of groups of items ---------------- */
+    /*  a gallery goes in a ribbon group, below */
     g_barRibbon = CB_AddBar(g_cb, "Ribbon", CBD_TOP, CBBS_RIBBON);
     CB_SetBarDock(g_cb, g_barRibbon, CBD_TOP, 3, 0);
     {
@@ -243,6 +254,16 @@ static void BuildBars(HWND hwnd)
         tHome = CB_AddRibbonTab(g_cb, g_barRibbon, "&Home");
 
         grp = CB_AddRibbonGroup(g_cb, tHome, "Clipboard");
+
+    {   /* a GALLERY: a grid of picture choices, which is what a ribbon
+           has always been missing */
+        int gal = CB_AddGallery(g_cb, grp, 610, 4, 58, 52);
+        CB_AddGalleryCell(g_cb, gal, imgInfo, "New");
+        CB_AddGalleryCell(g_cb, gal, imgWarn, "Open");
+        CB_AddGalleryCell(g_cb, gal, imgErr,  "Save");
+        CB_AddGalleryCell(g_cb, gal, imgQ,    "Print");
+        CB_SetGallerySel(g_cb, gal, 2);
+    }
         it = CB_AddItem(g_cb, grp, CBI_SPLIT, CMD_OPEN, "Paste", imgApp);
         CB_SetItemStyle(g_cb, it, CBIS_TEXTBELOW);
         CB_SetItemMenu(g_cb, it, mOpen);
