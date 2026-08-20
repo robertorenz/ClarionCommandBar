@@ -2776,6 +2776,132 @@ int CBAPI CB_GetReserveSpace(HCB cb)
     return m ? m->reserve : 0;
 }
 
+/*=====================================================================
+  Saving and restoring where the user put the bars
+
+  A bar the user dragged somewhere is worth remembering, and every part
+  of that lives here rather than in a dozen new getters: the manager
+  writes a small text blob and reads it back, and the caller only has to
+  find somewhere to keep a string.
+
+      CBLAYOUT 1
+      bar "Standard" dock=0 row=0 off=0 vis=1 fx=180 fy=240 min=0
+      bar "Ribbon" dock=0 row=1 off=0 vis=1 fx=100 fy=100 min=1
+
+  Bars are matched by TITLE, not by id.  An id is creation order, so
+  inserting a bar would shift every id after it and silently hand the
+  saved position of one bar to another; a title survives that.  A bar in
+  the file that no longer exists is ignored, and a bar that exists with
+  nothing saved for it keeps whatever the program gave it - so adding and
+  removing bars between releases degrades quietly instead of throwing an
+  old layout away.
+  =====================================================================*/
+static std::string CBQuoteTitle(const std::wstring& w)
+{
+    std::string s = CBToAnsi(w);
+    std::string out;
+    for (size_t i = 0; i < s.size(); ++i)
+    {
+        char ch = s[i];
+        if (ch == '"' || ch == '\\') out += '\\';
+        if (ch == '\r' || ch == '\n') ch = ' ';
+        out += ch;
+    }
+    return out;
+}
+
+int CBAPI CB_SaveLayout(HCB cb, char* buf, int cbBuf)
+{
+    CBManager* m = (CBManager*)cb;
+    if (!m) return 0;
+
+    std::string out = "CBLAYOUT 1|";
+    char line[512];
+    std::map<int, CBContainer*>::iterator i;
+    for (i = m->containers.begin(); i != m->containers.end(); ++i)
+    {
+        CBContainer* c = i->second;
+        if (c->kind != CBK_BAR) continue;
+        _snprintf_s(line, sizeof(line), _TRUNCATE,
+                    "bar \"%s\" dock=%d row=%d off=%d vis=%d fx=%d fy=%d min=%d|",
+                    CBQuoteTitle(c->title).c_str(), c->dock, c->dockRow,
+                    c->dockOffset, c->visible ? 1 : 0, c->floatX, c->floatY,
+                    c->minimized ? 1 : 0);
+        out += line;
+    }
+
+    const int need = (int)out.size() + 1;
+    if (buf && cbBuf > 0)
+    {
+        int n = (need <= cbBuf) ? need : cbBuf;
+        memcpy(buf, out.c_str(), n - 1);
+        buf[n - 1] = 0;
+    }
+    return need;
+}
+
+static bool CBReadKey(const char* line, const char* key, int* out)
+{
+    const char* p = strstr(line, key);
+    if (!p) return false;
+    *out = atoi(p + strlen(key));
+    return true;
+}
+
+int CBAPI CB_LoadLayout(HCB cb, const char* text)
+{
+    CBManager* m = (CBManager*)cb;
+    if (!m || !text) return 0;
+    if (strncmp(text, "CBLAYOUT", 8) != 0) return 0;
+
+    int applied = 0;
+    const char* p = text;
+    while (*p)
+    {
+        /*  A pipe, not a newline: the whole point is that this goes in
+            ONE INI entry, and an INI entry cannot hold a line break.
+            Newlines are accepted as well, so a blob kept somewhere
+            roomier still reads back. */
+        size_t n = strcspn(p, "|\r\n");
+        std::string line(p, n);
+        p += n;
+        while (*p == '|' || *p == '\r' || *p == '\n') ++p;
+
+        if (line.compare(0, 5, "bar \"") != 0) continue;
+        size_t a = 5, b = a;
+        std::string title;
+        while (b < line.size() && line[b] != '"')
+        {
+            if (line[b] == '\\' && b + 1 < line.size()) ++b;
+            title += line[b++];
+        }
+        if (b >= line.size()) continue;
+
+        /* the bar with this title */
+        CBContainer* bar = NULL;
+        std::wstring want = CBToWide(title.c_str());
+        std::map<int, CBContainer*>::iterator i;
+        for (i = m->containers.begin(); i != m->containers.end(); ++i)
+            if (i->second->kind == CBK_BAR && i->second->title == want)
+            { bar = i->second; break; }
+        if (!bar) continue;                    /* gone since it was saved */
+
+        const char* l = line.c_str();
+        int v = 0;
+        if (CBReadKey(l, "dock=", &v) && v >= CBD_TOP && v <= CBD_FIXED) bar->dock = v;
+        if (CBReadKey(l, "row=",  &v) && v >= 0) bar->dockRow = v;
+        if (CBReadKey(l, "off=",  &v) && v >= 0) bar->dockOffset = v;
+        if (CBReadKey(l, "vis=",  &v)) bar->visible = (v != 0);
+        if (CBReadKey(l, "fx=",   &v)) bar->floatX = v;
+        if (CBReadKey(l, "fy=",   &v)) bar->floatY = v;
+        if (CBReadKey(l, "min=",  &v) && (bar->style & CBBS_RIBBON)) bar->minimized = (v != 0);
+        applied++;
+    }
+
+    CBRelayout(m);
+    return applied;
+}
+
 void CBAPI CB_SetHostReserveBottom(HCB cb, int px)
 {
     CBManager* m = (CBManager*)cb;

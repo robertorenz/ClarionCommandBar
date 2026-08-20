@@ -114,6 +114,8 @@ CB_SetHostReserveBottom PROCEDURE(LONG cb, SIGNED px),PASCAL,NAME('CB_SetHostRes
 CB_GetHostReserveBottom PROCEDURE(LONG cb),SIGNED,PASCAL,NAME('CB_GetHostReserveBottom')
 CB_SetRibbonMinimized PROCEDURE(LONG cb, SIGNED bar, SIGNED minimized),PASCAL,NAME('CB_SetRibbonMinimized')
 CB_GetRibbonMinimized PROCEDURE(LONG cb, SIGNED bar),SIGNED,PASCAL,NAME('CB_GetRibbonMinimized')
+CB_SaveLayout        PROCEDURE(LONG cb, *CSTRING buf, SIGNED cbBuf),SIGNED,PASCAL,RAW,NAME('CB_SaveLayout')
+CB_LoadLayout        PROCEDURE(LONG cb, *CSTRING text),SIGNED,PASCAL,RAW,NAME('CB_LoadLayout')
 CB_GetReserveSpace   PROCEDURE(LONG cb),SIGNED,PASCAL,NAME('CB_GetReserveSpace')
 CB_GetHostMenuVisible PROCEDURE(LONG cb),SIGNED,PASCAL,NAME('CB_GetHostMenuVisible')
     END
@@ -1368,6 +1370,50 @@ tip   STRING(128)
   IF hideOriginal AND made THEN SELF.ShowHostToolbar(toolbarFeq, 0).
   SELF.Layout()
   RETURN made
+
+
+!---------------------------------------------------------------------
+!  Where the user put the bars
+!---------------------------------------------------------------------
+!  The blob is deliberately small and deliberately text: it goes in an
+!  INI entry, and a support call can read it out loud over the phone.
+CommandBarClass.LayoutText PROCEDURE()
+buf CSTRING(4097)
+  CODE
+  IF ~SELF.CB THEN RETURN ''.
+  buf = ''
+  CB_SaveLayout(SELF.CB, buf, SIZE(buf))
+  RETURN buf
+
+
+CommandBarClass.RestoreLayout PROCEDURE(STRING text)
+buf CSTRING(4097)
+  CODE
+  IF ~SELF.CB OR ~LEN(CLIP(text)) THEN RETURN 0.
+  buf = CLIP(text)
+  RETURN CB_LoadLayout(SELF.CB, buf)
+
+
+!  The blob is one line per bar joined with pipes, which is exactly what
+!  an INI entry can hold - so these two are the whole of it.
+CommandBarClass.SaveLayoutTo PROCEDURE(STRING iniFile, STRING iniGroup)
+txt STRING(4096)
+  CODE
+  txt = SELF.LayoutText()
+  IF LEN(CLIP(txt))
+    PUTINI(CLIP(iniGroup), 'Bars', CLIP(txt), CLIP(iniFile))
+  END
+
+
+CommandBarClass.RestoreLayoutFrom PROCEDURE(STRING iniFile, STRING iniGroup)
+txt STRING(4096)
+  CODE
+  txt = GETINI(CLIP(iniGroup), 'Bars', '', CLIP(iniFile))
+  IF ~LEN(CLIP(txt))
+    RETURN 0
+  END
+  RETURN SELF.RestoreLayout(CLIP(txt))
+
 
 !---------------------------------------------------------------------
 ! the event pump

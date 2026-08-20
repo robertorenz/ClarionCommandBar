@@ -93,6 +93,7 @@ INCLUDE('CommandBar.inc'),ONCE
     #DISPLAY('Version 1.1 - updated 2026-08-19 14:20')
     #DISPLAY('')
     #INSERT(%CBGeneralPrompts)
+    #INSERT(%CBRememberPrompts)
   #ENDTAB
   #TAB('&Appearance')
     #INSERT(%CBAppearancePrompts)
@@ -145,6 +146,9 @@ INCLUDE('CommandBar.inc'),ONCE
   #INSERT(%CBEmitTakeEvent)
 #ENDAT
 #AT(%WindowManagerMethodCodeSection,'Kill','(),BYTE'),PRIORITY(7500),WHERE(%CBDisable=0),DESCRIPTION('ClaCommandBar: destroy the command bars')
+  #IF(%CBRemember)
+%CBObject.SaveLayoutTo('%CBRememberIni','%CBRememberSection')
+  #ENDIF
 %CBObject.Kill()
 #ENDAT
 #AT(%ProcedureRoutines),WHERE(%CBDisable=0)
@@ -243,6 +247,7 @@ CBPump:%ActiveTemplateInstance ROUTINE
       #DISPLAY('position, so the resizer keeps the bar with it.')
     #ENDBOXED
     #INSERT(%CBGeneralPrompts)
+    #INSERT(%CBRememberPrompts)
   #ENDTAB
   #TAB('&Appearance')
     #INSERT(%CBAppearancePrompts)
@@ -299,6 +304,9 @@ INCLUDE('CommandBar.inc'),ONCE
   #INSERT(%CBEmitTakeEvent)
 #ENDAT
 #AT(%WindowManagerMethodCodeSection,'Kill','(),BYTE'),PRIORITY(7500),WHERE(%CBDisable=0),DESCRIPTION('ClaCommandBar: destroy the command bars')
+  #IF(%CBRemember)
+%CBObject.SaveLayoutTo('%CBRememberIni','%CBRememberSection')
+  #ENDIF
 %CBObject.Kill()
 #ENDAT
 #AT(%ProcedureRoutines),WHERE(%CBDisable=0)
@@ -385,6 +393,7 @@ CBPump:%ActiveTemplateInstance ROUTINE
     #DISPLAY('Version 1.1 - updated 2026-08-19 14:20')
     #DISPLAY('')
     #INSERT(%CBGeneralPrompts)
+    #INSERT(%CBRememberPrompts)
   #ENDTAB
   #TAB('&Menu and toolbar')
     #BOXED('The frame''s own MENUBAR')
@@ -515,6 +524,9 @@ CBToolBar:%ActiveTemplateInstance SIGNED                         ! the mirrored 
   #INSERT(%CBEmitTakeEvent)
 #ENDAT
 #AT(%WindowManagerMethodCodeSection,'Kill','(),BYTE'),PRIORITY(7500),WHERE(%CBDisable=0),DESCRIPTION('ClaCommandBar: destroy the command bars')
+  #IF(%CBRemember)
+%CBObject.SaveLayoutTo('%CBRememberIni','%CBRememberSection')
+  #ENDIF
 %CBObject.Kill()
 #ENDAT
 #AT(%ProcedureRoutines),WHERE(%CBDisable=0)
@@ -721,6 +733,24 @@ CBPump:%ActiveTemplateInstance ROUTINE
 #!-----------------------------------------------------------------------------
 #! %CBBarPrompts
 #!-----------------------------------------------------------------------------
+#GROUP(%CBRememberPrompts)
+  #BOXED('Remember where the user puts them')
+    #DISPLAY('Drag a bar to another edge and it stays there next time. Which')
+    #DISPLAY('edge each bar is on, which row, the order within the row,')
+    #DISPLAY('whether it is showing, where a floating one sits and whether a')
+    #DISPLAY('ribbon is collapsed - all of it goes in one INI entry.')
+    #DISPLAY('')
+    #DISPLAY('Bars are matched by NAME on the way back in, so adding or')
+    #DISPLAY('removing one in a later release never hands an old position to')
+    #DISPLAY('the wrong bar; anything it does not recognise is ignored.')
+    #PROMPT('&Remember where the user puts the bars',CHECK),%CBRemember,DEFAULT(0),AT(10)
+    #ENABLE(%CBRemember)
+      #PROMPT('&INI file:',@s128),%CBRememberIni,DEFAULT('.\%Application%.INI')
+      #PROMPT('&Section:',@s64),%CBRememberSection,DEFAULT('CommandBars')
+      #DISPLAY('   Use one section per window if a window has its own bars.')
+    #ENDENABLE
+  #ENDBOXED
+#!
 #GROUP(%CBBarPrompts)
   #BOXED('Bars')
     #DISPLAY('One entry per bar.  Bars on the same side stack by Row; two bars')
@@ -1245,6 +1275,10 @@ CBItm:%ActiveTemplateInstance:%CBn SIGNED                        ! %CBItemType i
 #! %CBEmitBuildEnd - closes the IF opened by %CBEmitBuild.
 #!-----------------------------------------------------------------------------
 #GROUP(%CBEmitBuildEnd)
+  #IF(%CBRemember)
+    !  put the bars back where this user last dragged them
+    %CBObject.RestoreLayoutFrom('%CBRememberIni','%CBRememberSection')
+  #ENDIF
     %CBObject.Layout()
     DO CBFit:%ActiveTemplateInstance
   END

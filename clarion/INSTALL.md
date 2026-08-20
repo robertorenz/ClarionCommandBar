@@ -457,6 +457,33 @@ IF CommandBar.RibbonMinimized(CBBar:1:Ribbon)
 Measured on the showcase's ribbon: 109px open, 29px collapsed, and back to
 109 on the next tab click.
 
+### 5b12. Remembering where the user put the bars
+
+Tick **Remember where the user puts the bars** on the General tab and give it
+an INI file and a section. Which edge each bar is on, which row, the order
+within the row, whether it is showing, where a floating one sits and whether a
+ribbon is collapsed all go into **one INI entry**:
+
+```
+[CommandBars]
+Bars=CBLAYOUT 1|bar "Menu" dock=0 row=0 off=0 vis=1 fx=100 fy=100 min=0|bar "Tools" dock=3 row=0 ...
+```
+
+Bars are matched by **name**, not by creation order, so adding or removing one
+in a later release never hands an old position to the wrong bar. A bar in the
+file that no longer exists is ignored; a bar with nothing saved for it keeps
+whatever the program gave it.
+
+By hand it is one call each way:
+
+```clarion
+CommandBar.RestoreLayoutFrom('.\MyApp.INI', 'CommandBars')   ! after the bars are built
+CommandBar.SaveLayoutTo('.\MyApp.INI', 'CommandBars')        ! before the window closes
+```
+
+`LayoutText()` and `RestoreLayout()` hand you the blob directly if you would
+rather keep it somewhere else — a user record, the registry, a settings table.
+
 ### 5c. Putting your own controls under the bars
 
 The bars take space off the top / bottom / sides of the window. Whatever is

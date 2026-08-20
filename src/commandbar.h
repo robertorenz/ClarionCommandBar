@@ -395,6 +395,17 @@ int   CBAPI CB_GetHostReserveBottom(HCB cb);
 void  CBAPI CB_SetRibbonMinimized(HCB cb, int bar, int minimized);
 int   CBAPI CB_GetRibbonMinimized(HCB cb, int bar);
 
+/* ---- saving where the user put the bars ---------------------------- */
+/* CB_SaveLayout writes a small text blob describing every bar - which   */
+/* edge, which row, the order within it, whether it is showing, where a  */
+/* floating one sits, and whether a ribbon is collapsed.  Pass a NULL    */
+/* buffer to be told how many bytes it needs, including the terminator.  */
+/* Bars are matched by TITLE on the way back in, so inserting or         */
+/* removing one between releases does not hand an old position to the    */
+/* wrong bar; anything unrecognised is ignored.                          */
+int   CBAPI CB_SaveLayout(HCB cb, char* buf, int cbBuf);
+int   CBAPI CB_LoadLayout(HCB cb, const char* text);
+
 #ifdef __cplusplus
 }
 #endif

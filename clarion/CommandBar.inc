@@ -326,7 +326,21 @@ FindToolbar     PROCEDURE(),SIGNED,VIRTUAL
 !-- The first control of this CREATE: type anywhere in the window, or 0.
 FindControlOfType PROCEDURE(SIGNED wantType),SIGNED,VIRTUAL
 !-- Show or hide the real TOOLBAR and everything in it.
-ShowHostToolbar PROCEDURE(SIGNED toolbarFeq, BYTE visible),PROC,VIRTUAL
+ShowHostToolbar PROCEDURE(SIGNED toolbarFeq, BYTE visible),VIRTUAL
+!-- Where the user put the bars.
+!--
+!-- SaveLayout hands back a small text blob - which edge each bar is on,
+!-- which row, the order within it, whether it is showing, where a floating
+!-- one sits, whether a ribbon is collapsed.  RestoreLayout takes it back.
+!-- Bars are matched by TITLE, so adding or removing one between releases
+!-- does not hand an old position to the wrong bar.
+LayoutText      PROCEDURE(),STRING,VIRTUAL
+RestoreLayout   PROCEDURE(STRING text),SIGNED,PROC,VIRTUAL
+!-- The same thing, kept in an INI for you.  Call SaveLayoutTo before the
+!-- window closes and RestoreLayoutFrom once the bars are built - or tick
+!-- "Remember where the user puts the bars" and the template does both.
+SaveLayoutTo    PROCEDURE(STRING iniFile, STRING iniGroup),VIRTUAL
+RestoreLayoutFrom PROCEDURE(STRING iniFile, STRING iniGroup),SIGNED,PROC,VIRTUAL
 !-- Throw the mirrored menu away and read the MENUBAR again, onto the
 !-- same bar.  Call it when the frame's menu has CHANGED - which in an
 !-- MDI app means whenever a child window opens or closes, because
