@@ -727,10 +727,17 @@ CBPump:%ActiveTemplateInstance ROUTINE
     #DISPLAY('Mark an item "Image above the text" and it becomes the big')
     #DISPLAY('button; everything beside it stacks three-deep in small rows.')
     #DISPLAY('')
-    #DISPLAY('This builds the lot in one go: a ribbon bar with Home, Data and')
-    #DISPLAY('View tabs, groups inside them (Clipboard, Records, Editing,')
-    #DISPLAY('File, Report, Show, Window) and items with icons - the first')
-    #DISPLAY('in each group as the big button.')
+    #DISPLAY('This builds the lot in one go, laid out like the ribbon in the')
+    #DISPLAY('CommandBarShowcase example:')
+    #DISPLAY('')
+    #DISPLAY('   Home     Clipboard   [Paste]  Cut / Copy / Format')
+    #DISPLAY('            Font        font and size combos, B, I, colour')
+    #DISPLAY('            Editing     [Find]   Replace / Go To')
+    #DISPLAY('   Insert   Pages       [Cover] [Blank]')
+    #DISPLAY('            Illustr.    [Picture] [Chart]')
+    #DISPLAY('            Links       Hyperlink / Bookmark / Reference')
+    #DISPLAY('   View     Show        Ruler / Gridlines / Navigation pane')
+    #DISPLAY('            Zoom        [Zoom]  Zoom in / Zoom out')
     #BUTTON('Add a standard &ribbon'),WHENACCEPTED(%CBAddPresetRibbon()),AT(,,140)
     #ENDBUTTON
     #BUTTON('Ribbon &tabs...'),MULTI(%CBTabList,%CBTabBar & ' : ' & %CBTabName & '  "' & %CBTabText & '"'),INLINE
@@ -817,6 +824,7 @@ CBPump:%ActiveTemplateInstance ROUTINE
       #ENDENABLE
       #ENABLE(%CBItemType='Combo box')
         #PROMPT('Choices, pipe se&parated (Red|Green|Blue):',@s255),%CBItemCombo
+        #PROMPT('Starting c&hoice (0 = the first one):',SPIN(@n3,0,255,1)),%CBItemComboSel,DEFAULT(0)
       #ENDENABLE
       #ENABLE(%CBItemType='Edit box')
         #PROMPT('Starting &value:',@s128),%CBItemValue
@@ -882,6 +890,7 @@ CBPump:%ActiveTemplateInstance ROUTINE
   #DECLARE(%CBFound)
   #DECLARE(%CBRegion)
   #DECLARE(%CBActCmd)
+  #DECLARE(%CBComboSel)
   #IF(VAREXISTS(%CBCmds) = 0)
     #DECLARE(%CBCmds),MULTI,UNIQUE
   #ENDIF
@@ -1141,7 +1150,11 @@ CBItm:%ActiveTemplateInstance:%CBn SIGNED                        ! %CBItemType i
       #ENDIF
       #IF(%CBItemCombo)
     %CBObject.SetComboList(CBItm:%ActiveTemplateInstance:%CBn,'%CBItemCombo')
-    %CBObject.SetComboSel(CBItm:%ActiveTemplateInstance:%CBn,0)
+        #SET(%CBComboSel,%CBItemComboSel)
+        #IF(%CBComboSel = '')
+          #SET(%CBComboSel,0)
+        #ENDIF
+    %CBObject.SetComboSel(CBItm:%ActiveTemplateInstance:%CBn,%CBComboSel)
       #ENDIF
       #IF(%CBItemValue)
     %CBObject.SetItemValue(CBItm:%ActiveTemplateInstance:%CBn,'%CBItemValue')
@@ -1597,9 +1610,38 @@ CBFit:%ActiveTemplateInstance ROUTINE
   #INSERT(%CBPutAccel,'CtrlF',%CBpCmd + 10)
   #INSERT(%CBPutAccel,'F1Key',%CBpCmd + 11)
 #!
+#GROUP(%CBPutCombo,%pIn,%pCmd,%pChoices,%pWidth,%pSel),AUTO
+  #INSERT(%CBPutItem,%pIn,'Combo box','',%pCmd,'','')
+  #SET(%CBItemCombo,%pChoices)
+  #SET(%CBItemWidth,%pWidth)
+  #SET(%CBItemComboSel,%pSel)
+#!
+#GROUP(%CBPutToggle,%pIn,%pText,%pCmd),AUTO
+  #INSERT(%CBPutItem,%pIn,'Toggle button',%pText,%pCmd,'','')
+#!
+#GROUP(%CBPutCheck,%pIn,%pText,%pCmd,%pOn),AUTO
+  #INSERT(%CBPutItem,%pIn,'Check box',%pText,%pCmd,'','')
+  #SET(%CBItemChecked,%pOn)
+#!
+#GROUP(%CBPutColour,%pIn,%pCmd,%pColour),AUTO
+  #INSERT(%CBPutItem,%pIn,'Colour button','',%pCmd,'','Text colour')
+  #SET(%CBItemColor,%pColour)
+#!
 #!-----------------------------------------------------------------------------
-#! 2.  A standard ribbon - a bar marked "is a ribbon", three tabs, groups
-#!     inside them, and the first item of each group as the big button.
+#! 2.  A standard ribbon.  Laid out like the one in CommandBarShowcase,
+#!     because that is the shape people recognise: a big button on the left
+#!     of a group with small ones stacked beside it, and real controls -
+#!     the font and size combos, B and I toggles, a colour button - in
+#!     among them.  Every group gets its caption underneath.
+#!
+#!       Home     Clipboard  [Paste]  Cut / Copy / Format
+#!                Font       font combo, size combo, B, I, colour
+#!                Editing    [Find]   Replace / Go To
+#!       Insert   Pages      [Cover] [Blank]
+#!                Illustr.   [Picture] [Chart]
+#!                Links      Hyperlink / Bookmark / Reference
+#!       View     Show       Ruler / Gridlines / Navigation pane
+#!                Zoom       [Zoom]  Zoom in / Zoom out
 #!-----------------------------------------------------------------------------
 #GROUP(%CBAddPresetRibbon),AUTO
   #DECLARE(%CBpBar)
@@ -1607,8 +1649,17 @@ CBFit:%ActiveTemplateInstance ROUTINE
   #DECLARE(%CBpTab)
   #DECLARE(%CBpGrp)
   #INSERT(%CBStdIcons)
+  #INSERT(%CBUseImage,'Picture','OPEN.ICO')
+  #INSERT(%CBUseImage,'Chart','PRINT.ICO')
   #SET(%CBpBar,%CBFreeName('Ribbon'))
   #SET(%CBpCmd,%CBNextCmd())
+  #!  a ribbon wants room for the big buttons
+  #IF(%CBIconSize = 16)
+    #SET(%CBIconSize,20)
+  #ENDIF
+  #IF(%CBLargeIcon < 32)
+    #SET(%CBLargeIcon,32)
+  #ENDIF
   #ADD(%CBBarList,ITEMS(%CBBarList)+1)
   #SET(%CBBarName,%CBpBar)
   #SET(%CBBarTitle,'Ribbon')
@@ -1616,50 +1667,58 @@ CBFit:%ActiveTemplateInstance ROUTINE
   #SET(%CBBarRow,0)
   #SET(%CBBarOffset,0)
   #SET(%CBBarRibbon,1)
-  #SET(%CBBarLargeIcons,1)
   #SET(%CBBarGripper,0)
   #SET(%CBBarFloatable,0)
+  #!---- Home ----
   #SET(%CBpTab,%CBFreeName('Home'))
-  #INSERT(%CBPutTab,%CBpBar,%CBpTab,'Home')
+  #INSERT(%CBPutTab,%CBpBar,%CBpTab,'&Home')
   #SET(%CBpGrp,%CBFreeName('Clipboard'))
   #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Clipboard')
   #INSERT(%CBPutBig,%CBpGrp,'Paste',%CBpCmd,'Paste','Paste (Ctrl+V)')
   #INSERT(%CBPutItem,%CBpGrp,'Button','Cut',%CBpCmd + 1,'Cut','Cut (Ctrl+X)')
   #INSERT(%CBPutItem,%CBpGrp,'Button','Copy',%CBpCmd + 2,'Copy','Copy (Ctrl+C)')
-  #SET(%CBpGrp,%CBFreeName('Records'))
-  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Records')
-  #INSERT(%CBPutBig,%CBpGrp,'Insert',%CBpCmd + 3,'Insert','Add a record')
-  #INSERT(%CBPutItem,%CBpGrp,'Button','Change',%CBpCmd + 4,'Change','Edit the record')
-  #INSERT(%CBPutItem,%CBpGrp,'Button','Delete',%CBpCmd + 5,'Delete','Delete the record')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Format',%CBpCmd + 3,'','Copy formatting')
+  #SET(%CBpGrp,%CBFreeName('Font'))
+  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Font')
+  #INSERT(%CBPutCombo,%CBpGrp,%CBpCmd + 4,'Segoe UI|Tahoma|Consolas|Times New Roman',130,0)
+  #INSERT(%CBPutCombo,%CBpGrp,%CBpCmd + 5,'8|9|10|12|14|18',50,1)
+  #INSERT(%CBPutToggle,%CBpGrp,'B',%CBpCmd + 6)
+  #INSERT(%CBPutToggle,%CBpGrp,'I',%CBpCmd + 7)
+  #INSERT(%CBPutColour,%CBpGrp,%CBpCmd + 8,00800000H)
   #SET(%CBpGrp,%CBFreeName('Editing'))
   #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Editing')
-  #INSERT(%CBPutBig,%CBpGrp,'Find',%CBpCmd + 6,'Find','Find (Ctrl+F)')
-  #INSERT(%CBPutItem,%CBpGrp,'Button','Undo',%CBpCmd + 7,'Undo','Undo (Ctrl+Z)')
-  #INSERT(%CBPutItem,%CBpGrp,'Button','Redo',%CBpCmd + 8,'Redo','Redo (Ctrl+Y)')
-  #SET(%CBpTab,%CBFreeName('Data'))
-  #INSERT(%CBPutTab,%CBpBar,%CBpTab,'Data')
-  #SET(%CBpGrp,%CBFreeName('File'))
-  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'File')
-  #INSERT(%CBPutBig,%CBpGrp,'Open',%CBpCmd + 9,'Open','Open (Ctrl+O)')
-  #INSERT(%CBPutItem,%CBpGrp,'Button','New',%CBpCmd + 10,'New','New (Ctrl+N)')
-  #INSERT(%CBPutItem,%CBpGrp,'Button','Save',%CBpCmd + 11,'Save','Save (Ctrl+S)')
-  #SET(%CBpGrp,%CBFreeName('Report'))
-  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Report')
-  #INSERT(%CBPutBig,%CBpGrp,'Print',%CBpCmd + 12,'Print','Print (Ctrl+P)')
-  #INSERT(%CBPutItem,%CBpGrp,'Button','Refresh',%CBpCmd + 13,'Refresh','Read the data again')
+  #INSERT(%CBPutBig,%CBpGrp,'Find',%CBpCmd + 9,'Find','Find (Ctrl+F)')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Replace',%CBpCmd + 10,'','Replace')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Go To',%CBpCmd + 11,'','Go to')
+  #!---- Insert ----
+  #SET(%CBpTab,%CBFreeName('Insert'))
+  #INSERT(%CBPutTab,%CBpBar,%CBpTab,'&Insert')
+  #SET(%CBpGrp,%CBFreeName('Pages'))
+  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Pages')
+  #INSERT(%CBPutBig,%CBpGrp,'Cover',%CBpCmd + 12,'New','A cover page')
+  #INSERT(%CBPutBig,%CBpGrp,'Blank',%CBpCmd + 13,'New','A blank page')
+  #SET(%CBpGrp,%CBFreeName('Illustrations'))
+  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Illustrations')
+  #INSERT(%CBPutBig,%CBpGrp,'Picture',%CBpCmd + 14,'Picture','Insert a picture')
+  #INSERT(%CBPutBig,%CBpGrp,'Chart',%CBpCmd + 15,'Chart','Insert a chart')
+  #SET(%CBpGrp,%CBFreeName('Links'))
+  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Links')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Hyperlink',%CBpCmd + 16,'','Insert a link')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Bookmark',%CBpCmd + 17,'','Insert a bookmark')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Reference',%CBpCmd + 18,'','Cross-reference')
+  #!---- View ----
   #SET(%CBpTab,%CBFreeName('View'))
-  #INSERT(%CBPutTab,%CBpBar,%CBpTab,'View')
+  #INSERT(%CBPutTab,%CBpBar,%CBpTab,'&View')
   #SET(%CBpGrp,%CBFreeName('Show'))
   #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Show')
-  #INSERT(%CBPutBig,%CBpGrp,'Zoom',%CBpCmd + 14,'Zoom','Zoom')
-  #INSERT(%CBPutItem,%CBpGrp,'Check box','Status bar',%CBpCmd + 15,'','Show the status bar')
-  #SET(%CBItemChecked,1)
-  #INSERT(%CBPutItem,%CBpGrp,'Check box','Toolbar',%CBpCmd + 16,'','Show the toolbar')
-  #SET(%CBItemChecked,1)
-  #SET(%CBpGrp,%CBFreeName('Window'))
-  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Window')
-  #INSERT(%CBPutBig,%CBpGrp,'About',%CBpCmd + 17,'About','About this program')
-  #INSERT(%CBPutItem,%CBpGrp,'Button','Help',%CBpCmd + 18,'Help','Help (F1)')
+  #INSERT(%CBPutCheck,%CBpGrp,'Ruler',%CBpCmd + 19,1)
+  #INSERT(%CBPutCheck,%CBpGrp,'Gridlines',%CBpCmd + 20,0)
+  #INSERT(%CBPutCheck,%CBpGrp,'Navigation pane',%CBpCmd + 21,0)
+  #SET(%CBpGrp,%CBFreeName('Zoom'))
+  #INSERT(%CBPutGroup,%CBpTab,%CBpGrp,'Zoom')
+  #INSERT(%CBPutBig,%CBpGrp,'Zoom',%CBpCmd + 22,'Zoom','Zoom')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Zoom in',%CBpCmd + 23,'','Zoom in')
+  #INSERT(%CBPutItem,%CBpGrp,'Button','Zoom out',%CBpCmd + 24,'','Zoom out')
 #!
 #!-----------------------------------------------------------------------------
 #! 3.  A popup menu, from one of five presets.

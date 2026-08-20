@@ -394,7 +394,7 @@ your own code in the embed points.
 | Tab | Button | What you get |
 |-----|--------|--------------|
 | **Bars** | *Add a standard toolbar* | a docked bar named `Standard` — New, Open, Save, Print, Cut, Copy, Paste, Undo, Redo, a search box, Find, and Help pushed to the far end — with icons, tooltips and the matching `Ctrl+N/O/S/P/F` and `F1` shortcuts |
-| **Ribbon** | *Add a standard ribbon* | a bar marked *is a ribbon* named `Ribbon`, with **Home** (Clipboard, Records, Editing), **Data** (File, Report) and **View** (Show, Window) tabs, the first item of each group being the big button |
+| **Ribbon** | *Add a standard ribbon* | the ribbon from `CommandBarShowcase`, entry for entry: **Home** — Clipboard (big Paste, then Cut / Copy / Format), Font (font and size combos, **B** and *I* toggles, a colour button), Editing (big Find, then Replace / Go To); **Insert** — Pages, Illustrations, Links; **View** — Show (three tick boxes) and Zoom. Small icons go to 20px and large to 32px if they were still at their defaults, so the big buttons have room |
 | **Menus** | *Add this preset menu* | the popup named by the **Preset** drop beside it: **File**, **Edit**, **Browse row**, **View** or **Help** — with icons, shortcut text, and check marks where they belong |
 
 Press one twice and you get `Standard2`, `Ribbon2`, `FileMenu2` — names become
