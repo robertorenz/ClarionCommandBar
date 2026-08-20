@@ -164,6 +164,7 @@ CBPump:%ActiveTemplateInstance ROUTINE
   LOOP WHILE %CBObject.TakeOne()
     CASE %CBObject.LastEvent
     OF CBE:Command
+    OROF CBE:ValueChanged
 #IF(ITEMS(%CBCmds))
       CASE %CBObject.LastCmd
   #FOR(%CBCmds)
@@ -322,6 +323,7 @@ CBPump:%ActiveTemplateInstance ROUTINE
   LOOP WHILE %CBObject.TakeOne()
     CASE %CBObject.LastEvent
     OF CBE:Command
+    OROF CBE:ValueChanged
 #IF(ITEMS(%CBCmds))
       CASE %CBObject.LastCmd
   #FOR(%CBCmds)
@@ -542,6 +544,7 @@ CBPump:%ActiveTemplateInstance ROUTINE
   LOOP WHILE %CBObject.TakeOne()
     CASE %CBObject.LastEvent
     OF CBE:Command
+    OROF CBE:ValueChanged
 #IF(ITEMS(%CBCmds))
       CASE %CBObject.LastCmd
   #FOR(%CBCmds)
@@ -928,8 +931,15 @@ CBPump:%ActiveTemplateInstance ROUTINE
         #PROMPT('&Highest value:',SPIN(@n_7,-999999,999999,1)),%CBItemHi,DEFAULT(100)
         #PROMPT('&Starting value:',SPIN(@n_7,-999999,999999,1)),%CBItemVal,DEFAULT(0)
         #DISPLAY('   A slider and a spin box raise CBE:ValueChanged as the')
-        #DISPLAY('   user moves them, with the new value in LastParam.  A')
-        #DISPLAY('   progress bar is yours to drive with SetItemNumber.')
+        #DISPLAY('   user moves them, and the embed point for their command')
+        #DISPLAY('   id runs each time, with the new value in LastParam:')
+        #DISPLAY('')
+        #DISPLAY('      Zoom = CommandBar.LastParam')
+        #DISPLAY('')
+        #DISPLAY('   A slider fires on EVERY step of a drag, so keep that')
+        #DISPLAY('   embed cheap - store the value and act on it later if')
+        #DISPLAY('   the work is heavy.  A progress bar raises nothing; it')
+        #DISPLAY('   is yours to drive with SetItemNumber.')
       #ENDENABLE
       #ENABLE(%CBItemType='Gallery')
         #PROMPT('&Columns:',SPIN(@n2,1,20,1)),%CBItemGalCols,DEFAULT(4)

@@ -490,8 +490,18 @@ Four item types on the **Items** tab beyond the buttons and boxes.
 
 **Slider**, **Spin box** and **Progress bar** are one idea wearing three faces:
 a value between two bounds. Give them a lowest, a highest and a starting value.
-The first two raise `CBE:ValueChanged` as the user moves them, with the new
-value in `LastParam`; a progress bar is yours to drive:
+
+A slider and a spin box raise `CBE:ValueChanged` as the user moves them, and
+**the embed point for their command id runs each time**, with the new value in
+`LastParam`:
+
+```clarion
+Zoom = CommandBar.LastParam        ! in the embed for that command id
+```
+
+A slider fires on *every* step of a drag, so keep that embed cheap — store the
+value and do the heavy work later. A progress bar raises nothing at all; it is
+yours to drive:
 
 ```clarion
 CommandBar.SetItemNumber(CBItm:1:9, done * 100 / total)
