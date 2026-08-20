@@ -204,6 +204,8 @@ MirrorBase      LONG
 !  The bar the last MirrorMenu built into, and the popup containers it
 !  made - RefreshMirror needs both.
 MirrorBar       SIGNED
+!  The TOOLBAR the last MirrorToolbar read, so it can be put back.
+MirrorTBFeq     SIGNED
 MirrorHide      BYTE
 MirrorMenus     &CBMirrorQueue,PRIVATE
 !  The event most recently pulled off the queue.  Read these from your
@@ -306,6 +308,25 @@ FindMenuBar     PROCEDURE(),SIGNED
 !-- every top-level menu it found.  Paste it into a MESSAGE() when a
 !-- mirrored bar comes out empty and it will tell you why.
 MenuReport      PROCEDURE(),STRING
+!-- Mirror the window's own TOOLBAR onto a command bar, the way MirrorMenu
+!-- does the MENUBAR.  Every BUTTON, CHECK, ENTRY, COMBO and PROMPT in it
+!-- becomes a bar item carrying its ICON, its TIP and its disabled state,
+!-- and choosing one POSTs EVENT:Accepted to the ORIGINAL control - so the
+!-- embed code you already wrote goes on running.
+!--
+!-- On an APPLICATION frame this is worth more than it looks: with the
+!-- toolbar mirrored you can hide the real one, and then Clarion's MDI
+!-- toolbar merging - which hides it, rebuilds it and swaps it on every
+!-- child window - has nothing on screen left to disturb.
+!-- Returns how many controls it found.
+MirrorToolbar   PROCEDURE(SIGNED bar, BYTE hideOriginal=1),SIGNED,PROC,VIRTUAL
+MirrorToolbarFrom PROCEDURE(SIGNED bar, SIGNED toolbarFeq, BYTE hideOriginal=1),SIGNED,PROC,VIRTUAL
+!-- The field equate of the window's TOOLBAR, or 0.
+FindToolbar     PROCEDURE(),SIGNED,VIRTUAL
+!-- The first control of this CREATE: type anywhere in the window, or 0.
+FindControlOfType PROCEDURE(SIGNED wantType),SIGNED,VIRTUAL
+!-- Show or hide the real TOOLBAR and everything in it.
+ShowHostToolbar PROCEDURE(SIGNED toolbarFeq, BYTE visible),PROC,VIRTUAL
 !-- Throw the mirrored menu away and read the MENUBAR again, onto the
 !-- same bar.  Call it when the frame's menu has CHANGED - which in an
 !-- MDI app means whenever a child window opens or closes, because

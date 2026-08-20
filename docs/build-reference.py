@@ -3,8 +3,72 @@
 # and CommandBar.inc, so the reference cannot drift from the code.
 import io, json, re, html
 
-API   = json.load(io.open('docs/_api.json', encoding='utf-8'))
-CLASS = json.load(io.open('docs/_class.json', encoding='utf-8'))
+# ---------------------------------------------------------------- extract
+# Everything here is read out of the sources, so re-running this script
+# after an API change is all it takes to refresh the guide.
+import io as _io, re as _re
+
+def _extract_api():
+    h = _io.open('src/commandbar.h', encoding='utf-8', newline='').read().replace('\r\n', '\n')
+    d = _io.open('src/commandbar.def', encoding='utf-8', newline='').read().replace('\r\n', '\n')
+    ordn = {m.group(1): int(m.group(2)) for m in _re.finditer(r'^\s*(CB_\w+)\s+@(\d+)', d, _re.M)}
+    strip = lambda s: _re.sub(r'/\*.*?\*/', '', s).rstrip()
+    secs, cur, pend, lines, i = [], None, [], h.split('\n'), 0
+    while i < len(lines):
+        raw = lines[i]
+        m = _re.match(r'/\* ---- (.+?) -+ \*/', raw)
+        if m:
+            cur = {'name': m.group(1).strip(), 'funcs': [], 'consts': []}
+            secs.append(cur); pend = []; i += 1; continue
+        m = _re.match(r'#define\s+(CB\w+)\s+([^/]+?)\s*(?:/\*(.*?)\*/)?\s*$', raw)
+        if m and cur is not None:
+            cur['consts'].append({'name': m.group(1), 'value': m.group(2).strip(),
+                                  'note': (m.group(3) or '').strip()})
+            pend = []; i += 1; continue
+        if 'CBAPI' in raw:
+            codeline, trail = strip(raw), _re.findall(r'/\*(.*?)\*/', raw)
+            while not codeline.endswith(';') and i + 1 < len(lines):
+                i += 1
+                codeline += ' ' + strip(lines[i]).strip()
+                trail += _re.findall(r'/\*(.*?)\*/', lines[i])
+            nm = _re.search(r'CB_\w+', codeline)
+            if nm and cur is not None:
+                cur['funcs'].append({'name': nm.group(0),
+                                     'sig': _re.sub(r'\s+', ' ', codeline).strip(),
+                                     'ord': ordn.get(nm.group(0)),
+                                     'trail': ' '.join(t.strip() for t in trail).strip(),
+                                     'doc': [p for p in pend if p]})
+            pend = []; i += 1; continue
+        c = raw.strip()
+        if c.startswith('/*') or c.startswith('*'):
+            pend.append(_re.sub(r'^/?\*+', '', c).replace('*/', '').strip())
+        elif c == '':
+            pend = []
+        i += 1
+    return secs
+
+def _extract_class():
+    inc = _io.open('clarion/CommandBar.inc', encoding='utf-8', newline='').read().replace('\r\n', '\n')
+    lines = inc.split('\n')
+    a = next(i for i, l in enumerate(lines) if l.startswith('CommandBarClass CLASS'))
+    b = next(i for i, l in enumerate(lines) if i > a and l.strip() == 'END')
+    out, pend = [], []
+    for s in lines[a + 1:b]:
+        t = s.strip()
+        if t.startswith('!'):
+            pend.append(_re.sub(r'^!-*\s?', '', t)); continue
+        m = _re.match(r'^(\w+)\s+PROCEDURE\((.*?)\)(.*)$', s)
+        if m:
+            out.append({'name': m.group(1), 'parms': m.group(2),
+                        'attrs': m.group(3).strip(', '),
+                        'doc': [p for p in pend if p.strip()]})
+            pend = []
+        elif t == '':
+            pend = []
+    return out
+
+API   = _extract_api()
+CLASS = _extract_class()
 
 def esc(s): return html.escape(s or '')
 

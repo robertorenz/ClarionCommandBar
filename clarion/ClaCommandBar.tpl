@@ -386,7 +386,7 @@ CBPump:%ActiveTemplateInstance ROUTINE
     #DISPLAY('')
     #INSERT(%CBGeneralPrompts)
   #ENDTAB
-  #TAB('&Menu')
+  #TAB('&Menu and toolbar')
     #BOXED('The frame''s own MENUBAR')
       #DISPLAY('Mirroring reads the MENUBAR on this frame at run time and')
       #DISPLAY('rebuilds it as a command bar - same order, same nesting, the')
@@ -412,6 +412,25 @@ CBPump:%ActiveTemplateInstance ROUTINE
         #DISPLAY('it with SetMenu().  The ITEMs stay alive either way, which')
         #DISPLAY('is what makes the mirrored rows still work.  It is put back')
         #DISPLAY('when the window closes.')
+      #ENDENABLE
+    #ENDBOXED
+    #BOXED('The frame''s own TOOLBAR')
+      #DISPLAY('The same trick, on the row of buttons.  Every BUTTON, CHECK,')
+      #DISPLAY('ENTRY, COMBO and PROMPT in the TOOLBAR becomes a bar item')
+      #DISPLAY('carrying its ICON, its TIP and its disabled state, and')
+      #DISPLAY('choosing one POSTs EVENT:Accepted to the ORIGINAL control.')
+      #DISPLAY('')
+      #DISPLAY('Worth more than it looks on an MDI frame: with the toolbar')
+      #DISPLAY('mirrored and the real one hidden, Clarion''s toolbar merging')
+      #DISPLAY('- which hides it, rebuilds it and swaps it every time a child')
+      #DISPLAY('window opens - has nothing on screen left to disturb.')
+      #PROMPT('&Toolbar:',DROP('Leave the toolbar alone|Mirror it onto a command bar|Mirror it and hide the original')),%CBFToolMode,DEFAULT('Leave the toolbar alone')
+      #ENABLE(%CBFToolMode <> 'Leave the toolbar alone')
+        #PROMPT('&Name for the mirrored bar:',@s32),%CBFToolBar,DEFAULT('Tools')
+        #PROMPT('Dock it &on:',DROP('Top|Bottom|Left|Right')),%CBFToolDock,DEFAULT('Top')
+        #PROMPT('R&ow (0 is nearest the edge):',SPIN(@n2,0,20,1)),%CBFToolRow,DEFAULT(1)
+        #PROMPT('Drag g&ripper',CHECK),%CBFToolGripper,DEFAULT(1),AT(10)
+        #PROMPT('User may fl&oat it',CHECK),%CBFToolFloat,DEFAULT(1),AT(10)
       #ENDENABLE
     #ENDBOXED
   #ENDTAB
@@ -455,6 +474,9 @@ INCLUDE('CommandBar.inc'),ONCE
   #IF(%CBFMenuMode <> 'Leave the menu alone')
 CBMirrorBar:%ActiveTemplateInstance SIGNED                       ! the mirrored menu bar
   #ENDIF
+  #IF(%CBFToolMode <> 'Leave the toolbar alone')
+CBToolBar:%ActiveTemplateInstance SIGNED                         ! the mirrored TOOLBAR bar
+  #ENDIF
 #ENDAT
 #AT(%WindowManagerMethodCodeSection,'Init','(),BYTE'),PRIORITY(8590),WHERE(%CBDisable=0 AND ITEMS(%CBAccelList)),DESCRIPTION('ClaCommandBar: alert the shortcut keys')
   #INSERT(%CBEmitAlerts)
@@ -471,6 +493,19 @@ CBMirrorBar:%ActiveTemplateInstance SIGNED                       ! the mirrored 
     %CBObject.MirrorMenu(CBMirrorBar:%ActiveTemplateInstance,1)
     #ELSE
     %CBObject.MirrorMenu(CBMirrorBar:%ActiveTemplateInstance,0)
+    #ENDIF
+  #ENDIF
+  #IF(%CBFToolMode <> 'Leave the toolbar alone')
+    !  And the same for the frame's TOOLBAR: every control in it becomes a
+    !  bar item that POSTs EVENT:Accepted to the original, so the toolbar
+    !  embeds run untouched.  Hiding the real one leaves Clarion's MDI
+    !  toolbar merging nothing on screen to disturb.
+    CBToolBar:%ActiveTemplateInstance = %CBObject.AddBar('%CBFToolBar',%(%CBDockEquate(%CBFToolDock)),%(%CBToolBarStyle()))
+    %CBObject.SetBarDock(CBToolBar:%ActiveTemplateInstance,%(%CBDockEquate(%CBFToolDock)),%CBFToolRow,0)
+    #IF(%CBFToolMode = 'Mirror it and hide the original')
+    %CBObject.MirrorToolbar(CBToolBar:%ActiveTemplateInstance,1)
+    #ELSE
+    %CBObject.MirrorToolbar(CBToolBar:%ActiveTemplateInstance,0)
     #ENDIF
   #ENDIF
     #EMBED(%CBFAfterBuild,'ClaCommandBar: after the bars are built (add your own items here)'),%ActiveTemplateInstance
@@ -1417,6 +1452,17 @@ CBFit:%ActiveTemplateInstance ROUTINE
 #! %CBMirrorBarStyle - the mirrored menu bar's CBBS: bits.  It is a menu bar
 #! first; the gripper and floating are the frame template's own options.
 #!-----------------------------------------------------------------------------
+#GROUP(%CBToolBarStyle),AUTO
+  #DECLARE(%CBTBits)
+  #SET(%CBTBits,'0')
+  #IF(%CBFToolGripper)
+    #SET(%CBTBits,%CBTBits & ' + CBBS:Gripper')
+  #ENDIF
+  #IF(%CBFToolFloat)
+    #SET(%CBTBits,%CBTBits & ' + CBBS:Floatable')
+  #ENDIF
+  #RETURN(%CBTBits)
+#!
 #GROUP(%CBMirrorBarStyle),AUTO
   #DECLARE(%CBMBits)
   #SET(%CBMBits,'CBBS:MenuBar')

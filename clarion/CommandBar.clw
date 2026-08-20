@@ -135,6 +135,7 @@ CommandBarClass.Construct PROCEDURE()
   SELF.MenuBar       = 0
   SELF.MirrorBase    = 1000000
   SELF.MirrorBar     = 0
+  SELF.MirrorTBFeq   = 0
   SELF.MirrorHide    = 0
   SELF.MirrorMenus  &= NEW(CBMirrorQueue)
   SELF.LastItem      = 0
@@ -1237,6 +1238,136 @@ CommandBarClass.RibbonMinimized PROCEDURE(SIGNED bar)
   CODE
   IF ~SELF.CB THEN RETURN 0.
   RETURN CB_GetRibbonMinimized(SELF.CB, bar)
+
+
+!---------------------------------------------------------------------
+!  Mirroring the window's own TOOLBAR
+!---------------------------------------------------------------------
+!  A TOOLBAR is not a menu: its controls are ordinary controls, so they
+!  answer PROP:Text, PROP:Icon, PROP:Tip and PROP:Disable directly.  What
+!  it shares with a MENUBAR is where the equates live - a frame numbers
+!  named controls DOWNWARD from -1 and unnamed ones DOWNWARD from 32767,
+!  and answers LASTFIELD() = 0 - which is why the same four-range scan is
+!  used to find them.
+CommandBarClass.FindControlOfType PROCEDURE(SIGNED wantType)
+pass SIGNED
+lo   SIGNED
+hi   SIGNED
+stp  SIGNED
+feq  SIGNED
+res  SIGNED
+  CODE
+  IF SELF.Win &= NULL THEN RETURN 0.
+  res = 0
+  SETTARGET(SELF.Win)
+  LOOP pass = 1 TO 4
+    CASE pass
+    OF 1                                     ! APPLICATION, named
+      lo = -1 ; hi = -2048 ; stp = -1
+    OF 2                                     ! WINDOW, named
+      lo = 1 ; hi = LASTFIELD() ; stp = 1
+    OF 3                                     ! APPLICATION, unnamed
+      lo = 32767 ; hi = 32767 - 1023 ; stp = -1
+    ELSE                                     ! WINDOW, unnamed
+      lo = 32768 ; hi = 32768 + 1023 ; stp = 1
+    END
+    IF stp > 0 AND hi < lo THEN CYCLE.
+    LOOP feq = lo TO hi BY stp
+      IF feq{PROP:Type} = wantType
+        res = feq
+        BREAK
+      END
+    END
+    IF res THEN BREAK.
+  END
+  SETTARGET()
+  RETURN res
+
+
+CommandBarClass.FindToolbar PROCEDURE()
+  CODE
+  RETURN SELF.FindControlOfType(CREATE:toolbar)
+
+
+CommandBarClass.ShowHostToolbar PROCEDURE(SIGNED toolbarFeq, BYTE visible)
+n     SIGNED
+child SIGNED
+  CODE
+  IF SELF.Win &= NULL OR ~toolbarFeq THEN RETURN.
+  SETTARGET(SELF.Win)
+  !  Hiding the TOOLBAR itself is not enough on every build, so each
+  !  control in it is hidden as well.  They stay alive either way, which
+  !  is what keeps the mirrored rows working.
+  toolbarFeq{PROP:Hide} = CHOOSE(visible = 0, 1, 0)
+  LOOP n = 1 TO 512
+    child = toolbarFeq{PROP:Child, n}
+    IF ~child THEN BREAK.
+    child{PROP:Hide} = CHOOSE(visible = 0, 1, 0)
+  END
+  SETTARGET()
+
+
+CommandBarClass.MirrorToolbar PROCEDURE(SIGNED bar, BYTE hideOriginal=1)
+  CODE
+  RETURN SELF.MirrorToolbarFrom(bar, SELF.FindToolbar(), hideOriginal)
+
+
+CommandBarClass.MirrorToolbarFrom PROCEDURE(SIGNED bar, SIGNED toolbarFeq, BYTE hideOriginal=1)
+n     SIGNED
+child SIGNED
+ty    SIGNED
+it    SIGNED
+img   SIGNED
+made  SIGNED
+txt   STRING(128)
+icon  STRING(128)
+tip   STRING(128)
+  CODE
+  IF ~SELF.CB OR SELF.Win &= NULL OR ~toolbarFeq THEN RETURN 0.
+  SELF.MirrorTBFeq = toolbarFeq
+  SETTARGET(SELF.Win)
+  made = 0
+
+  LOOP n = 1 TO 512
+    child = toolbarFeq{PROP:Child, n}
+    IF ~child THEN BREAK.
+    ty  = child{PROP:Type}
+    txt = child{PROP:Text}
+    tip = child{PROP:Tip}
+
+    !  an ICON() on the control becomes an image on the item
+    img  = 0
+    icon = child{PROP:Icon}
+    IF CLIP(icon) THEN img = SELF.AddImage(CLIP(icon)).
+
+    it = 0
+    CASE ty
+    OF CREATE:button
+      !  the command id is the SAME trick the menu mirror uses, so
+      !  TakeOne turns it back into a POST on the original control
+      it = SELF.AddButton(bar, SELF.MirrorBase + child, CLIP(txt), img)
+    OF CREATE:check
+      it = SELF.AddToggle(bar, SELF.MirrorBase + child, CLIP(txt), img)
+      IF child{PROP:Value} THEN SELF.SetItemChecked(it, 1).
+    OF CREATE:entry OROF CREATE:text
+      it = SELF.AddEdit(bar, SELF.MirrorBase + child, CLIP(child{PROP:ScreenText}), 140)
+    OF CREATE:combo OROF CREATE:list
+      it = SELF.AddCombo(bar, SELF.MirrorBase + child, '', 140)
+    OF CREATE:prompt OROF CREATE:string OROF CREATE:sstring
+      it = SELF.AddLabel(bar, CLIP(txt))
+    END
+    IF ~it THEN CYCLE.
+
+    made += 1
+    IF CLIP(tip) THEN SELF.SetItemTooltip(it, CLIP(tip)).
+    IF child{PROP:Disable} THEN SELF.SetItemEnabled(it, 0).
+    IF child{PROP:Hide} AND ~hideOriginal THEN SELF.SetItemVisible(it, 0).
+  END
+
+  SETTARGET()
+  IF hideOriginal AND made THEN SELF.ShowHostToolbar(toolbarFeq, 0).
+  SELF.Layout()
+  RETURN made
 
 !---------------------------------------------------------------------
 ! the event pump
