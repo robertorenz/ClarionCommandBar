@@ -303,17 +303,47 @@ if (q) {
     });
   });
 }
+/*  Which sidebar entry is lit.  An IntersectionObserver was the wrong
+    instrument: one click crosses several headings at once, every one of them
+    arrives in a single callback, and the last entry processed won - so the
+    highlight settled one or two sections past the one that was clicked, and
+    the page looked as though it had jumped there.  Position is the question,
+    so ask position.  */
 const links = [...document.querySelectorAll('.nav__l a')];
 if (links.length) {
-  const spy = new IntersectionObserver(es => {
-    es.forEach(e => {
-      if (!e.isIntersecting) return;
-      links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id));
-    });
-  }, {rootMargin:'0px 0px -78% 0px'});
-  document.querySelectorAll('h2[id],h3[id]').forEach(h => spy.observe(h));
+  const byId  = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const marks = [...document.querySelectorAll('h2[id],h3[id]')].filter(h => byId.has(h.id));
+  const light = a => links.forEach(l => l.classList.toggle('on', l === a));
+  let held = null, holdUntil = 0, queued = false;
+
+  function spy() {
+    queued = false;
+    if (held) { light(held); return; }
+    let cur = marks[0];
+    for (const h of marks) {
+      if (h.getBoundingClientRect().top <= 120) cur = h; else break;
+    }
+    //  the foot of the page belongs to the last section, however short it is
+    if (innerHeight + scrollY >= document.documentElement.scrollHeight - 2)
+      cur = marks[marks.length - 1];
+    if (cur) light(byId.get(cur.id));
+  }
+
+  //  a click owns the highlight until the scroll it started has landed
+  links.forEach(a => a.addEventListener('click', () => {
+    held = a; holdUntil = performance.now() + 700; light(a);
+  }));
+  const later = () => { if (!queued) { queued = true; requestAnimationFrame(spy); } };
+  addEventListener('scroll', () => {
+    if (held && performance.now() > holdUntil) held = null;
+    later();
+  }, {passive: true});
+  addEventListener('resize', later);
+  if (marks.length) spy();
 }
 """
+
+PROBLEMS = []
 
 def volnav(current):
     out = ['<ul class="vols">']
@@ -324,13 +354,24 @@ def volnav(current):
     out.append('</ul>')
     return ''.join(out)
 
-def secnav(groups):
+def headings(body):
+    """Every anchored id in the body, with the words actually printed above it."""
+    out = {}
+    for m in re.finditer(r'<h([23]) id="([^"]+)"[^>]*>(.*?)</h\1>', body, re.S):
+        txt = re.sub(r'<span class="k">.*?</span>', '', m.group(3), flags=re.S)
+        out[m.group(2)] = re.sub(r"\s+", ' ', re.sub(r'<[^>]+>', '', txt)).strip()
+    return out
+
+def secnav(groups, titles):
+    #  The sidebar prints the heading itself, never a second wording of it.
+    #  Two hand-kept lists drift, and a reader who clicks "The event pump" and
+    #  lands under a heading worded differently believes the link is broken.
     out = []
     for group, items in groups:
         if group: out.append('<p class="nav__g">%s</p>' % esc(group))
         out.append('<ul class="nav__l">')
         for aid, label in items:
-            out.append('<li><a href="#%s">%s</a></li>' % (aid, esc(label)))
+            out.append('<li><a href="#%s">%s</a></li>' % (aid, esc(titles.get(aid, label))))
         out.append('</ul>')
     return ''.join(out)
 
@@ -344,11 +385,19 @@ def nextcards(names):
     return '<div class="next">%s</div>' % ''.join(cards)
 
 def page(filename, title, eyebrow, heading, sub, chips, groups, body, showfilter=False):
+    titles = headings(body)
+    linked = [aid for _, items in groups for aid, _ in items]
+    for aid in linked:
+        if aid not in titles:
+            PROBLEMS.append('%s: the nav points at #%s, which is not a heading' % (filename, aid))
+    for aid in titles:
+        if aid not in linked:
+            PROBLEMS.append('%s: heading #%s (%s) is in no nav' % (filename, aid, titles[aid]))
     nav = volnav(filename) + \
           ('<label class="ui" style="font-size:11px;color:var(--faint);letter-spacing:.08em;'
            'text-transform:uppercase" for="filter">Filter</label>'
            '<input id="filter" class="filter" type="search" placeholder="AddButton, theme&hellip;" '
-           'autocomplete="off">' if showfilter else '') + secnav(groups)
+           'autocomplete="off">' if showfilter else '') + secnav(groups, titles)
     chiphtml = ''.join('<span class="chip">%s</span>' % c for c in chips)
     doc = ('<title>%s</title>\n'
            '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
@@ -639,7 +688,7 @@ def build_programmers_guide():
     B = []
     add = B.append
 
-    add('''<h2 id="model"><span class="k">Concepts</span>Managers, containers, items</h2>
+    add('''<h2 id="model"><span class="k">Concepts</span>Managers, containers and items</h2>
 <p>One <b>manager</b> per window &mdash; <code>CB.Init</code> makes it, <code>CB.Kill</code> takes it
 down. A <b>container</b> is anything that holds items: a docked bar, a floating bar, a popup menu, or a
 ribbon group. An <b>item</b> is a button, a toggle, a separator, an edit box. Both come back as integer
@@ -650,8 +699,8 @@ of <code>0</code> means the item raises nothing, which is what separators and la
 share an id &mdash; a toolbar button and a menu row for the same command usually should, and then
 <code>EnableCmd</code> greys out both at once.</p>''')
 
-    add('<h2 id="pump"><span class="k">Concepts</span>Nothing is dispatched behind your back</h2>')
-    add('<p>The engine never calls into your code. It queues events, and you drain the queue:</p>')
+    add('<h2 id="pump"><span class="k">Concepts</span>The event pump</h2>')
+    add('<p>Nothing is dispatched behind your back. The engine never calls into your code &mdash; it queues events, and you drain the queue:</p>')
     add(code(S_PUMP))
     add('''<p><code>TakeOne</code> fills <code>LastItem</code>, <code>LastCmd</code>,
 <code>LastEvent</code> and <code>LastParam</code>, then calls the virtual <code>TakeCommand</code> /
@@ -709,14 +758,14 @@ item carrying its <code>ICON()</code>, its <code>TIP()</code> and its disabled s
 &mdash; reports what the bars left over, in <b>pixels</b>. On a frame the host&rsquo;s own children are
 moved for you; on a plain window you place your own controls.</p>''')
 
-    add('<h2 id="values"><span class="k">How to</span>Sliders, spin boxes and progress bars</h2>')
+    add('<h2 id="values"><span class="k">How to</span>Sliders, spins and progress</h2>')
     add('<p>One idea wearing three faces: a value between two bounds.</p>')
     add(code(S_VALUES2))
     add(note('warn', 'A drag fires on every step',
        '<p>Keep that handler cheap &mdash; store the value and do the heavy work afterwards, or a slider '
        'repaints your report once per pixel.</p>'))
 
-    add('<h2 id="layout"><span class="k">How to</span>Remembering where the user put them</h2>')
+    add('<h2 id="layout"><span class="k">How to</span>Remembering bar positions</h2>')
     add('''<p>One INI entry holds which edge each bar is on, which row, the order within it, whether it is
 showing, where a floating one sits, and whether a ribbon is collapsed.</p>''')
     add(code(S_LAYOUT2))
@@ -1019,7 +1068,8 @@ GROUPS = [
                                'MirrorInto','MinFeqIn','MenuRank','SetHostMenu','HostMenuVisible']),
  ('Mirroring the toolbar',    ['MirrorToolbar','MirrorToolbarFrom','FindToolbar','FindControlOfType',
                                'ShowHostToolbar']),
- ('Remembering the layout',   ['LayoutText','RestoreLayout','SaveLayoutTo','RestoreLayoutFrom']),
+ ('Remembering the layout',   ['LayoutText','RestoreLayout','SaveLayoutTo','RestoreLayoutFrom',
+                               'PipeItem']),
 ]
 
 def api_section(sec):
@@ -1142,7 +1192,8 @@ CB_Shutdown();''', 'c'))
                         for s in funcsecs]),
            ('Equates', [('eq', 'Tables')] +
                        [('eq-' + slug(s['name']), s['name'][0].upper() + s['name'][1:])
-                        for s in constsecs])]
+                        for s in constsecs]),
+           ('', [('next4', 'Where to go next')])]
 
     ntypes = len([c for x in API for c in x['consts']
                   if c['name'].startswith('CBI_') and c['name'] != 'CBI_LAST'])
@@ -1172,3 +1223,7 @@ if __name__ == '__main__':
         print('  !! no usage snippet for: ' + ', '.join(sorted(set(MISSING))))
     else:
         print('  every class method has a worked example')
+    if PROBLEMS:
+        for line in PROBLEMS: print('  !! ' + line)
+    else:
+        print('  every nav entry names the heading it lands on')

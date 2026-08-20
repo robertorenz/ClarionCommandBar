@@ -151,7 +151,7 @@ footer{margin-top:70px; padding:22px 40px 0; border-top:1px solid var(--rule); c
 <div class="wrap">
 <nav class="side">
   <p class="brand"><b>ClaCommandBar</b></p>
-<ul class="vols"><li><a href="https://claude.ai/code/artifact/9f7423f8-9a58-4c90-83fb-bc902fce7cfc">1. Getting Started<small>Install it and get a bar on screen</small></a></li><li><a href="#" class="here">2. Programmer&#x27;s Guide<small>How it works, and how to make it do things</small></a></li><li><a href="https://claude.ai/code/artifact/dc72dc88-b5af-41b4-a3b0-8f73cb308ae9">3. Template Guide<small>Every template, tab, prompt and embed</small></a></li><li><a href="https://claude.ai/code/artifact/bfef6768-0e5d-45e6-9a8e-9f053eb6dbbb">4. Reference<small>The class, the DLL and the equates</small></a></li></ul><p class="nav__g">Concepts</p><ul class="nav__l"><li><a href="#model">Managers and items</a></li><li><a href="#pump">The event pump</a></li><li><a href="#docking">Rows and docking</a></li></ul><p class="nav__g">How to</p><ul class="nav__l"><li><a href="#ribbon">Building a ribbon</a></li><li><a href="#mirror">Taking over the menu</a></li><li><a href="#host">Room for the bars</a></li><li><a href="#values">Sliders and progress</a></li><li><a href="#layout">Remembering positions</a></li><li><a href="#theme">Theming</a></li></ul><p class="nav__g">Clarion notes</p><ul class="nav__l"><li><a href="#clarion">Why Clarion does that</a></li><li><a href="#trouble">When it misbehaves</a></li><li><a href="#next2">Where to go next</a></li></ul>
+<ul class="vols"><li><a href="https://claude.ai/code/artifact/9f7423f8-9a58-4c90-83fb-bc902fce7cfc">1. Getting Started<small>Install it and get a bar on screen</small></a></li><li><a href="#" class="here">2. Programmer&#x27;s Guide<small>How it works, and how to make it do things</small></a></li><li><a href="https://claude.ai/code/artifact/dc72dc88-b5af-41b4-a3b0-8f73cb308ae9">3. Template Guide<small>Every template, tab, prompt and embed</small></a></li><li><a href="https://claude.ai/code/artifact/bfef6768-0e5d-45e6-9a8e-9f053eb6dbbb">4. Reference<small>The class, the DLL and the equates</small></a></li></ul><p class="nav__g">Concepts</p><ul class="nav__l"><li><a href="#model">Managers, containers and items</a></li><li><a href="#pump">The event pump</a></li><li><a href="#docking">Rows, offsets and docking</a></li></ul><p class="nav__g">How to</p><ul class="nav__l"><li><a href="#ribbon">Building a ribbon</a></li><li><a href="#mirror">Taking over the menu</a></li><li><a href="#host">Leaving room for the bars</a></li><li><a href="#values">Sliders, spins and progress</a></li><li><a href="#layout">Remembering bar positions</a></li><li><a href="#theme">Theming</a></li></ul><p class="nav__g">Clarion notes</p><ul class="nav__l"><li><a href="#clarion">Why Clarion behaves as it does</a></li><li><a href="#trouble">When it misbehaves</a></li><li><a href="#next2">Where to go next</a></li></ul>
 </nav>
 <main class="main">
   <header class="hero"><div class="inner">
@@ -160,7 +160,7 @@ footer{margin-top:70px; padding:22px 40px 0; border-top:1px solid var(--rule); c
     <p class="sub">How the pieces fit, how to make each one do what you want, and why Clarion behaves the way it does when it surprises you.</p>
     <div class="chips"><span class="chip"><b>3</b> layers</span><span class="chip"><b>16</b> item types</span><span class="chip"><b>11</b> themes</span></div>
   </div></header>
-  <div class="inner"><h2 id="model"><span class="k">Concepts</span>Managers, containers, items</h2>
+  <div class="inner"><h2 id="model"><span class="k">Concepts</span>Managers, containers and items</h2>
 <p>One <b>manager</b> per window &mdash; <code>CB.Init</code> makes it, <code>CB.Kill</code> takes it
 down. A <b>container</b> is anything that holds items: a docked bar, a floating bar, a popup menu, or a
 ribbon group. An <b>item</b> is a button, a toggle, a separator, an edit box. Both come back as integer
@@ -169,7 +169,7 @@ ids, and you keep the ones you will need again.</p>
 <p>Every item carries a <b>command id</b> you choose. Clicking it queues an event carrying that id; an id
 of <code>0</code> means the item raises nothing, which is what separators and labels use. Two items may
 share an id &mdash; a toolbar button and a menu row for the same command usually should, and then
-<code>EnableCmd</code> greys out both at once.</p><h2 id="pump"><span class="k">Concepts</span>Nothing is dispatched behind your back</h2><p>The engine never calls into your code. It queues events, and you drain the queue:</p><pre class="code" data-lang="clarion"><code>  OF EVENT:Timer
+<code>EnableCmd</code> greys out both at once.</p><h2 id="pump"><span class="k">Concepts</span>The event pump</h2><p>Nothing is dispatched behind your back. The engine never calls into your code &mdash; it queues events, and you drain the queue:</p><pre class="code" data-lang="clarion"><code>  OF EVENT:Timer
     LOOP WHILE CB.TakeOne()          ! returns 0 when the queue is empty
       CASE CB.LastCmd
       OF CMD:Save ; DO SaveRoutine
@@ -255,7 +255,7 @@ n  = CB.MirrorToolbar(tb, 1)             ! 1 = hide the real TOOLBAR</code></pre
 !  how tall it is and no bar will cover it:
   CB.HostReserveBottom(23)</code></pre><p><code>CB_GetClientRect</code> &mdash; <code>ClientX/Y/Width/Height</code> on the class
 &mdash; reports what the bars left over, in <b>pixels</b>. On a frame the host&rsquo;s own children are
-moved for you; on a plain window you place your own controls.</p><h2 id="values"><span class="k">How to</span>Sliders, spin boxes and progress bars</h2><p>One idea wearing three faces: a value between two bounds.</p><pre class="code" data-lang="clarion"><code>zoom = CB.AddSlider(bar, CMD:Zoom, 25, 400, 100, 130)   ! lo, hi, value, width
+moved for you; on a plain window you place your own controls.</p><h2 id="values"><span class="k">How to</span>Sliders, spins and progress</h2><p>One idea wearing three faces: a value between two bounds.</p><pre class="code" data-lang="clarion"><code>zoom = CB.AddSlider(bar, CMD:Zoom, 25, 400, 100, 130)   ! lo, hi, value, width
 page = CB.AddSpin(bar, CMD:Page, 1, 9999, 1, 60)
 busy = CB.AddProgress(bar, 0, 100, 0, 130)
 
@@ -266,7 +266,7 @@ busy = CB.AddProgress(bar, 0, 100, 0, 130)
     END
 
 !  the progress bar raises nothing; drive it yourself
-CB.SetItemNumber(busy, done * 100 / total)</code></pre><aside class="note note--warn"><p class="note__t">A drag fires on every step</p><div class="note__b"><p>Keep that handler cheap &mdash; store the value and do the heavy work afterwards, or a slider repaints your report once per pixel.</p></div></aside><h2 id="layout"><span class="k">How to</span>Remembering where the user put them</h2><p>One INI entry holds which edge each bar is on, which row, the order within it, whether it is
+CB.SetItemNumber(busy, done * 100 / total)</code></pre><aside class="note note--warn"><p class="note__t">A drag fires on every step</p><div class="note__b"><p>Keep that handler cheap &mdash; store the value and do the heavy work afterwards, or a slider repaints your report once per pixel.</p></div></aside><h2 id="layout"><span class="k">How to</span>Remembering bar positions</h2><p>One INI entry holds which edge each bar is on, which row, the order within it, whether it is
 showing, where a floating one sits, and whether a ribbon is collapsed.</p><pre class="code" data-lang="clarion"><code>!  after the bars are built
 CB.RestoreLayoutFrom(&#x27;.\MyApp.INI&#x27;, &#x27;CommandBars&#x27;)
 
@@ -302,14 +302,42 @@ if (q) {
     });
   });
 }
+/*  Which sidebar entry is lit.  An IntersectionObserver was the wrong
+    instrument: one click crosses several headings at once, every one of them
+    arrives in a single callback, and the last entry processed won - so the
+    highlight settled one or two sections past the one that was clicked, and
+    the page looked as though it had jumped there.  Position is the question,
+    so ask position.  */
 const links = [...document.querySelectorAll('.nav__l a')];
 if (links.length) {
-  const spy = new IntersectionObserver(es => {
-    es.forEach(e => {
-      if (!e.isIntersecting) return;
-      links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id));
-    });
-  }, {rootMargin:'0px 0px -78% 0px'});
-  document.querySelectorAll('h2[id],h3[id]').forEach(h => spy.observe(h));
+  const byId  = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const marks = [...document.querySelectorAll('h2[id],h3[id]')].filter(h => byId.has(h.id));
+  const light = a => links.forEach(l => l.classList.toggle('on', l === a));
+  let held = null, holdUntil = 0, queued = false;
+
+  function spy() {
+    queued = false;
+    if (held) { light(held); return; }
+    let cur = marks[0];
+    for (const h of marks) {
+      if (h.getBoundingClientRect().top <= 120) cur = h; else break;
+    }
+    //  the foot of the page belongs to the last section, however short it is
+    if (innerHeight + scrollY >= document.documentElement.scrollHeight - 2)
+      cur = marks[marks.length - 1];
+    if (cur) light(byId.get(cur.id));
+  }
+
+  //  a click owns the highlight until the scroll it started has landed
+  links.forEach(a => a.addEventListener('click', () => {
+    held = a; holdUntil = performance.now() + 700; light(a);
+  }));
+  const later = () => { if (!queued) { queued = true; requestAnimationFrame(spy); } };
+  addEventListener('scroll', () => {
+    if (held && performance.now() > holdUntil) held = null;
+    later();
+  }, {passive: true});
+  addEventListener('resize', later);
+  if (marks.length) spy();
 }
 </script>

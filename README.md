@@ -78,8 +78,9 @@ the one in the build. Rebuild all four after changing the API:
 python docsuild-docs.py
 ```
 
-It reports any class member that has no worked example, so the guide cannot
-quietly fall behind the class.
+It reports any class member that has no worked example, and any sidebar entry
+whose wording has drifted from the heading it lands on, so neither the guide
+nor its navigation can quietly fall behind the class.
 
 ## What you get
 
