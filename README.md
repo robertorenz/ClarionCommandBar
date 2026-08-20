@@ -46,6 +46,19 @@ Icons are named plainly (`NEW.ICO`). Add them to the application's project and
 Clarion links them into the EXE, where they are found by resource name — no
 loose files to deploy.
 
+**It can take over the toolbar as well.** `MirrorToolbar` reads the frame's own
+`TOOLBAR` and rebuilds every `BUTTON`, `CHECK`, `ENTRY`, `COMBO` and `PROMPT` in
+it as bar items carrying their `ICON()`, `TIP()` and disabled state — choosing
+one POSTs `EVENT:Accepted` to the original control. Hide the real toolbar and
+Clarion's MDI toolbar merging, which hides it and rebuilds it every time a child
+window opens, has nothing left on screen to disturb.
+
+**It remembers where the user put things.** One INI entry holds which edge each
+bar is on, which row, the order within it, whether it is showing, where a
+floating one sits and whether a ribbon is collapsed — matched back by name, so
+adding or removing a bar in a later release never hands an old position to the
+wrong one.
+
 ## The reference guide
 
 `docs/reference.html` is the programmer's reference — the C API with its pinned
@@ -66,7 +79,9 @@ border, or be the menu bar.
 
 **Ribbons** — a bar of tabs, each tab a row of groups, each group full of
 ordinary items. `CBIS:TextBelow` makes the big image-over-text button;
-everything beside it stacks three-deep in small rows.
+everything beside it stacks three-deep in small rows. A ribbon **collapses** to
+its tab strip from the chevron at the end of the strip, from a double-click on a
+tab, or from `MinimizeRibbon`.
 
 ![ribbon](docs/ribbon.png)
 
@@ -83,6 +98,10 @@ share a command id and be greyed out together with one call:
 | `CBI:Color` | swatch button; the arrow opens the colour picker |
 | `CBI:Edit` | in-bar type-in field |
 | `CBI:Combo` | in-bar drop list |
+| `CBI:Slider` | track and thumb, drag to set a value |
+| `CBI:Spin` | number with up / down arrows |
+| `CBI:Progress` | read-only, shows how far along |
+| `CBI:Gallery` | a grid of picture choices — what a ribbon group wants |
 | `CBI:Label`, `CBI:Separator`, `CBI:Space` | trim |
 | `CBI:Menu` | a title on the menu bar |
 
