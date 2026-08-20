@@ -332,13 +332,6 @@ FindToolbar     PROCEDURE(),SIGNED,VIRTUAL
 FindControlOfType PROCEDURE(SIGNED wantType),SIGNED,VIRTUAL
 !-- Show or hide the real TOOLBAR and everything in it.
 ShowHostToolbar PROCEDURE(SIGNED toolbarFeq, BYTE visible),VIRTUAL
-!-- Where the user put the bars.
-!--
-!-- SaveLayout hands back a small text blob - which edge each bar is on,
-!-- which row, the order within it, whether it is showing, where a floating
-!-- one sits, whether a ribbon is collapsed.  RestoreLayout takes it back.
-!-- Bars are matched by TITLE, so adding or removing one between releases
-!-- does not hand an old position to the wrong bar.
 !-- Items that carry a NUMBER.  A slider, a spin box and a progress bar are
 !-- one idea wearing three faces: a value between two bounds.  The first two
 !-- raise CBE:ValueChanged as the user moves them, with the new value in
@@ -358,6 +351,13 @@ AddGalleryCell  PROCEDURE(SIGNED item, SIGNED image, STRING text),SIGNED,PROC
 SetGalleryGrid  PROCEDURE(SIGNED item, SIGNED columns, SIGNED cellW, SIGNED cellH)
 GallerySel      PROCEDURE(SIGNED item),SIGNED
 SetGallerySel   PROCEDURE(SIGNED item, SIGNED index)
+!-- Where the user put the bars.
+!--
+!-- SaveLayout hands back a small text blob - which edge each bar is on,
+!-- which row, the order within it, whether it is showing, where a floating
+!-- one sits, whether a ribbon is collapsed.  RestoreLayout takes it back.
+!-- Bars are matched by TITLE, so adding or removing one between releases
+!-- does not hand an old position to the wrong bar.
 LayoutText      PROCEDURE(),STRING,VIRTUAL
 RestoreLayout   PROCEDURE(STRING text),SIGNED,PROC,VIRTUAL
 !-- The same thing, kept in an INI for you.  Call SaveLayoutTo before the

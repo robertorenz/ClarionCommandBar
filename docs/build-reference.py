@@ -70,6 +70,34 @@ def _extract_class():
 API   = _extract_api()
 CLASS = _extract_class()
 
+#  One worked line of Clarion per property and method, from usage.py -
+#  the reason this guide shows how a call is used and not just its shape.
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__))))
+from usage import USAGE, PROPS
+
+def _extract_props():
+    inc = _io.open('clarion/CommandBar.inc', encoding='utf-8', newline='').read().replace('\r\n', '\n')
+    lines = inc.split('\n')
+    a = next(i for i, l in enumerate(lines) if l.startswith('CommandBarClass CLASS'))
+    b = next(i for i, l in enumerate(lines) if i > a and l.strip() == 'END')
+    out, pend = [], []
+    for ln in lines[a + 1:b]:
+        t = ln.strip()
+        if t.startswith('!'):
+            pend.append(_re.sub(r'^!-*\s?', '', t)); continue
+        if not t or _re.match(r'^\w+\s+PROCEDURE\(', ln):
+            pend = []; continue
+        m = _re.match(r'^(\w+)\s+(\S.*?)(?:\s{2,}!\s*(.*))?$', ln)
+        if m:
+            out.append({'name': m.group(1), 'type': m.group(2).strip(),
+                        'note': (m.group(3) or '').strip(),
+                        'doc': [x for x in pend if x.strip()]})
+        pend = []
+    return out
+
+PROPLIST = _extract_props()
+
 def esc(s): return html.escape(s or '')
 
 # ---------------------------------------------------------------- helpers
@@ -160,6 +188,8 @@ GROUPS = [
                                'MenuRank','MirrorInto','SetHostMenu','HostMenuVisible']),
 ]
 
+MISSING = []
+
 def class_tables():
     seen, out = set(), []
     byname = {m['name']: m for m in CLASS}
@@ -171,20 +201,29 @@ def class_tables():
             seen.add(n)
             doc = ' '.join(m['doc'])
             sig = '%s(%s)%s' % (m['name'], m['parms'], (',' + m['attrs']) if m['attrs'] else '')
+            use = USAGE.get(n)
+            if not use: MISSING.append(n)
             rows.append('<tr class="fn" data-k="%s"><td class="fn__n"><code>%s</code></td>'
-                        '<td class="fn__s"><code>%s</code>%s</td></tr>'
+                        '<td class="fn__s"><code>%s</code>%s%s</td></tr>'
                         % (esc((n + ' ' + doc).lower()), esc(n), esc(sig),
-                           '<p class="fn__d">%s</p>' % esc(doc) if doc else ''))
+                           '<p class="fn__d">%s</p>' % esc(doc) if doc else '',
+                           ('<pre class="code code--use" data-lang="use"><code>%s</code></pre>'
+                            % esc(use)) if use else ''))
         if rows:
             out.append('<h3 id="cls-%s">%s</h3><div class="tw"><table class="fns"><tbody>%s</tbody></table></div>'
                        % (slug(title), esc(title), ''.join(rows)))
     rest = [m for m in CLASS if m['name'] not in seen]
     if rest:
-        rows = ''.join('<tr class="fn" data-k="%s"><td class="fn__n"><code>%s</code></td>'
-                       '<td class="fn__s"><code>%s(%s)</code>%s</td></tr>'
-                       % (esc(m['name'].lower()), esc(m['name']), esc(m['name']), esc(m['parms']),
-                          '<p class="fn__d">%s</p>' % esc(' '.join(m['doc'])) if m['doc'] else '')
-                       for m in rest)
+        def restrow(m):
+            u = USAGE.get(m['name'])
+            if not u: MISSING.append(m['name'])
+            return ('<tr class="fn" data-k="%s"><td class="fn__n"><code>%s</code></td>'
+                    '<td class="fn__s"><code>%s(%s)</code>%s%s</td></tr>'
+                    % (esc(m['name'].lower()), esc(m['name']), esc(m['name']), esc(m['parms']),
+                       '<p class="fn__d">%s</p>' % esc(' '.join(m['doc'])) if m['doc'] else '',
+                       ('<pre class="code code--use" data-lang="use"><code>%s</code></pre>'
+                        % esc(u)) if u else ''))
+        rows = ''.join(restrow(m) for m in rest)
         out.append('<h3 id="cls-more">Everything else</h3><div class="tw"><table class="fns"><tbody>%s</tbody></table></div>' % rows)
     return ''.join(out)
 
@@ -484,6 +523,9 @@ hr{border:0; border-top:1px solid var(--rule); margin:44px 0}
   border-radius:0 7px 7px 0; padding:14px 16px; overflow-x:auto; margin:0 0 18px;
   font-size:12.9px; line-height:1.62; position:relative}
 .code code{white-space:pre; color:var(--ink)}
+.code--use{margin:7px 0 2px; border-left-color:var(--clarion); background:var(--paper);
+  font-size:12.4px; padding:9px 12px}
+.code--use::after{content:'Clarion'; color:var(--clarion)}
 .code::after{content:attr(data-lang); position:absolute; top:0; right:0; padding:3px 9px;
   font:500 9.5px/1 "IBM Plex Sans",sans-serif; letter-spacing:.1em; text-transform:uppercase;
   color:var(--faint); background:var(--surface); border-left:1px solid var(--rule);
@@ -744,6 +786,18 @@ add('''<p>Declared in <code>CommandBar.inc</code>, implemented in <code>CommandB
 is <code>VIRTUAL</code>, so deriving works the ABC way. The tables below come straight out of the header,
 so they cannot drift from the code.</p>''')
 add(code('''CB   CommandBarClass                     ! that is the whole declaration'''))
+add('<h3 id="cls-props">Properties</h3>')
+add('''<p>Public members you read or set directly. The four <code>Last&hellip;</code> ones are what an
+event leaves behind, and are the reason most windows never need anything but <code>TakeOne</code>.</p>''')
+add('<div class="tw"><table class="fns"><tbody>' + ''.join(
+    '<tr class="fn" data-k="%s"><td class="fn__n"><code>%s</code></td>'
+    '<td class="fn__s"><code>%s</code>%s%s</td></tr>'
+    % (esc((pr['name'] + ' ' + ' '.join(pr['doc'])).lower()),
+       esc(pr['name']), esc(pr['type']),
+       '<p class="fn__d">%s</p>' % esc(' '.join(pr['doc']) or pr['note']) if (pr['doc'] or pr['note']) else '',
+       ('<pre class="code code--use" data-lang="use"><code>%s</code></pre>'
+        % esc(PROPS[pr['name']])) if pr['name'] in PROPS else '')
+    for pr in PROPLIST) + '</tbody></table></div>')
 add(class_tables())
 
 # ---------------------------------------------------------------- C API
@@ -860,7 +914,7 @@ add('''<div class="tw"><table><thead><tr><th>What you see</th><th>What it is</th
 </tbody></table></div>''')
 
 # ---------------------------------------------------------------- assemble
-PAGE = '''<title>ClaCommandBar Reference</title>
+PAGE = '''<title>ClaCommandBar Programmer's Guide</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -868,7 +922,7 @@ PAGE = '''<title>ClaCommandBar Reference</title>
 <style>__CSS__</style>
 <div class="wrap">
 <nav class="side">
-  <p class="brand"><b>ClaCommandBar</b><span>Reference</span></p>
+  <p class="brand"><b>ClaCommandBar</b><span>Programmer&rsquo;s Guide</span></p>
   <label class="ui" style="font-size:11px;color:var(--faint);letter-spacing:.08em;text-transform:uppercase" for="filter">Filter the API</label>
   <input id="filter" class="filter" type="search" placeholder="AddButton, theme, ribbon&hellip;" autocomplete="off">
   __NAV__
@@ -876,8 +930,9 @@ PAGE = '''<title>ClaCommandBar Reference</title>
 <main class="main">
   <header class="hero"><div class="inner">
     <h1>ClaCommandBar</h1>
-    <p class="sub">Command bars, ribbons and popup menus for Clarion &mdash; a Direct2D engine, an ABC-style
-    class, and the templates that wire them up. This is the programmer&rsquo;s reference for all three.</p>
+    <p class="sub">Command bars, ribbons and popup menus for Clarion &mdash; a Direct2D engine, an
+    ABC-style class, and the templates that wire them up. The guide and the reference for all three, with a
+    worked line of Clarion against every call.</p>
     <div class="chips">
       <span class="chip"><b>__NEXPORT__</b> exports</span>
       <span class="chip"><b>__NMETH__</b> class methods</span>
@@ -906,3 +961,7 @@ out = (PAGE.replace('__CSS__', CSS)
            .replace('__JS__', JS))
 io.open('docs/reference.html', 'w', encoding='utf-8', newline='\n').write(out)
 print('docs/reference.html  %.1f KB' % (len(out) / 1024.0))
+if MISSING:
+    print('  !! no usage snippet for: ' + ', '.join(sorted(set(MISSING))))
+else:
+    print('  every class method has a worked example')
