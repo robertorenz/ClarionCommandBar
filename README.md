@@ -255,6 +255,7 @@ CB.AddButton(grp, CMD:Copy, 'Copy', imgCopy)
 | `bin/` | `commandbar.dll` (32-bit), `testhost.exe`, MSVC import lib |
 | `clarion/` | `CommandBar.inc/.clw` — the wrapper class; `ClaCommandBar.tpl` — all four templates in one file; `commandbar.lib`; `INSTALL.md` |
 | `docs/` | screenshots |
+| `LICENSE` | MIT |
 | `examples/` | `CommandBarShowcase/` — **start here**: a mirrored Clarion menu, a ribbon with a Styles **gallery** and a Zoom group holding a slider, a spin box and a progress bar, docking on four edges, and a bar on a REGION. `CommandBarDemo/` — one window exercising every item type and all eleven themes. `MenuMirrorTest/` — mirroring on a plain WINDOW and on an MDI APPLICATION frame that opens a merging child |
 
 ## Building the DLL
@@ -295,3 +296,7 @@ Not by inspection:
 ## Status
 
 Internal tool. Engine, wrapper, class and templates generated 2026-08-19.
+
+## License
+
+[MIT](LICENSE).
